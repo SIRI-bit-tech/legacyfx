@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Frontend
+frontend/.next/
+frontend/out/
+frontend/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.env.local
+frontend/.env.*.local
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Backend
+backend/.env
+backend/.env.local
+backend/.env.*.local
+backend/instance/
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.vscode/
+backend/.idea/
+backend/*.swp
+backend/*.swo
+backend/*~
+backend/.venv/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.*.local
+
+# Misc
+.cache/
+.tmp/
+*.log
