@@ -48,7 +48,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-body);
-  scroll-behavior: smooth;
+  /* scroll-behavior removed - use data-scroll-behavior attribute instead */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

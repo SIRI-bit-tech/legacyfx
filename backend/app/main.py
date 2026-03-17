@@ -8,16 +8,15 @@ import asyncio
 
 from app.config import get_settings
 from app.database import engine, Base
-from app.routes import (
-    auth, users, trading, markets, deposits, 
-    withdrawals, investments, mining, staking, 
-    signals, subscriptions, admin
-)
 
-# Import all models to ensure they're registered with Base.metadata
+# Import all models to ensure they're registered with Base.metadata FIRST
 from app.models.user import User
 from app.models.document import Document
+from app.models.wallet import Wallet
+from app.models.account import Account
 from app.models.trading import TradingPair, Order, UserAsset, PriceAlert, ExecutionTrade
+from app.models.trade import Trade
+from app.models.staking import StakingProduct, StakingPosition
 from app.models.finance import Deposit, Withdrawal, Transaction, ColdStorageVault, SubscriptionPlan, UserSubscription
 from app.models.investment import (
     InvestmentProduct, InvestmentPosition, 
@@ -28,7 +27,15 @@ from app.models.mining import MiningPlan, MiningSubscription
 from app.models.signals import SignalSource, TradingSignal
 from app.models.signal import Signal
 from app.models.notification import Notification
+from app.models.security import LoginHistory
+from app.models.referral import Referral
 from app.models.support import SupportTicket, TicketMessage
+
+from app.routes import (
+    auth, users, trading, markets, deposits, 
+    withdrawals, investments, mining, staking, 
+    signals, subscriptions, admin
+)
 
 settings = get_settings()
 logger = logging.getLogger(__name__)

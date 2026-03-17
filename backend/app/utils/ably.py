@@ -3,7 +3,9 @@ Ably real-time messaging integration
 """
 import logging
 from ably import AblyRest
-from config import settings
+from app.config import get_settings
+
+settings = get_settings()
 
 logger = logging.getLogger(__name__)
 

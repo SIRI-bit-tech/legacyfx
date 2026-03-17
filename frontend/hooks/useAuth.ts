@@ -11,13 +11,33 @@ export function useAuth() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
-        if (response.user) {
-          setUser(response.user);
-          setIsAuthenticated(true);
+        // Check if token exists in localStorage
+        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+        if (!token) {
+          setIsAuthenticated(false);
+          setLoading(false);
+          return;
         }
+
+        // If token exists, fetch session info
+        const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
+
+        // Map the session response to User type
+        const userData: User = {
+          id: response.user_id,
+          email: response.email,
+          username: response.username,
+          kyc_status: response.status || 'PENDING',
+          created_at: response.created_at || new Date().toISOString(),
+        };
+
+        setUser(userData);
+        setIsAuthenticated(true);
       } catch (err) {
+        console.error('Auth check error:', err);
         api.setToken(null);
+        setUser(null);
         setIsAuthenticated(false);
       } finally {
         setLoading(false);

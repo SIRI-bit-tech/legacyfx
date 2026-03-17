@@ -1,3 +1,5 @@
+'use client';
+
 import { DashboardLayout } from '../dashboard-layout';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';

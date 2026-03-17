@@ -34,30 +34,46 @@ async def get_market_prices():
     if settings.COINGECKO_API_KEY:
         params["x_cg_demo_api_key"] = settings.COINGECKO_API_KEY
 
-    async with httpx.AsyncClient() as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
             
-            return [
-                AssetPriceResponse(
-                    symbol=coin["symbol"].upper(),
-                    name=coin["name"],
-                    current_price=coin["current_price"],
-                    market_cap=coin.get("market_cap"),
-                    market_cap_rank=coin.get("market_cap_rank"),
-                    total_volume=coin.get("total_volume"),
-                    high_24h=coin.get("high_24h"),
-                    low_24h=coin.get("low_24h"),
-                    price_change_24h=coin.get("price_change_24h"),
-                    price_change_percentage_24h=coin.get("price_change_percentage_24h"),
-                    circulating_supply=coin.get("circulating_supply"),
-                    image_url=coin.get("image")
-                ) for coin in data
-            ]
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to fetch market data: {str(e)}")
+            if not isinstance(data, list):
+                logger.error(f"Unexpected response format from CoinGecko: {type(data)}")
+                raise HTTPException(status_code=500, detail="Invalid response from CoinGecko API")
+            
+            prices = []
+            for coin in data:
+                try:
+                    prices.append(
+                        AssetPriceResponse(
+                            symbol=coin.get("symbol", "").upper(),
+                            name=coin.get("name", ""),
+                            current_price=coin.get("current_price") or 0,
+                            market_cap=coin.get("market_cap"),
+                            market_cap_rank=coin.get("market_cap_rank"),
+                            total_volume=coin.get("total_volume"),
+                            high_24h=coin.get("high_24h"),
+                            low_24h=coin.get("low_24h"),
+                            price_change_24h=coin.get("price_change_24h"),
+                            price_change_percentage_24h=coin.get("price_change_percentage_24h"),
+                            circulating_supply=coin.get("circulating_supply"),
+                            image_url=coin.get("image")
+                        )
+                    )
+                except Exception as coin_error:
+                    logger.warning(f"Failed to parse coin data: {coin}, error: {coin_error}")
+                    continue
+            
+            return prices
+    except httpx.HTTPError as http_error:
+        logger.error(f"HTTP error fetching CoinGecko data: {http_error}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch market data: {str(http_error)}")
+    except Exception as e:
+        logger.error(f"Error fetching market prices: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch market data: {str(e)}")
 
 @router.get("/global-stats", response_model=GlobalStatsResponse)
 async def get_global_stats(db: AsyncSession = Depends(get_db)):

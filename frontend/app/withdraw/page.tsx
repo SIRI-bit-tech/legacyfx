@@ -1,3 +1,5 @@
+'use client';
+
 import { DashboardLayout } from '../dashboard-layout';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
@@ -47,7 +49,12 @@ export default function WithdrawPage() {
   }
 
 
-  const currentAsset = assets.find(a => a.symbol === selectedAsset) || assets[0];
+  const currentAsset = assets.find(a => a.symbol === selectedAsset) || assets[0] || {
+    name: 'Bitcoin',
+    symbol: 'BTC',
+    balance: 0,
+    fee: 0.0005
+  };
 
   return (
     <DashboardLayout>

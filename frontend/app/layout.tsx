@@ -65,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${cormorant.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${cormorant.variable} ${outfit.variable} ${jetbrainsMono.variable}`}>
       <head>
         <meta charSet="UTF-8" />
         <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css" />

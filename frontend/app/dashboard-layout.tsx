@@ -3,12 +3,18 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Sidebar } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, loading, router]);
 
   if (loading) {
     return (
@@ -24,7 +30,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    router.push('/login');
     return null;
   }
 

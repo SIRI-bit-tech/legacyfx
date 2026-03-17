@@ -6,16 +6,21 @@ import uuid
 
 from app.database import get_db
 from app.models.user import User, UserStatus
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, PasswordResetRequest
-from app.utils.auth import hash_password, verify_password, create_access_token
+from app.schemas.auth import (
+    RegisterRequest, RegisterResponse, LoginRequest, 
+    TokenResponse, PasswordResetRequest, VerifyEmailRequest
+)
+from app.utils.auth import hash_password, verify_password, create_access_token, generate_otp, get_current_user
+from app.utils.email import send_email, create_email_template
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 settings = get_settings()
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: RegisterRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     # Check if user already exists
@@ -27,6 +32,9 @@ async def register(
             detail="User with this email already exists"
         )
     
+    # Generate verification code
+    verification_code = generate_otp()
+    
     # Create new user
     user_id = str(uuid.uuid4())
     new_user = User(
@@ -36,24 +44,65 @@ async def register(
         password_hash=hash_password(request.password),
         first_name=request.first_name,
         last_name=request.last_name,
-        status=UserStatus.ACTIVE,
+        status=UserStatus.PENDING_VERIFICATION,
+        email_verified=False,
+        email_verification_token=verification_code,
         referral_code=str(uuid.uuid4())[:8].upper(),
         referred_by=request.referral_code
     )
     
     db.add(new_user)
     await db.commit()
-    await db.refresh(new_user)
     
-    # Generate tokens
-    access_token = create_access_token(data={"sub": new_user.id})
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=None,
-        user_id=new_user.id,
-        expires_in=settings.SESSION_TIMEOUT_MINUTES * 60
+    # Send verification email in background
+    email_content = create_email_template(
+        title="Email Verification",
+        code=verification_code,
+        message="Welcome to Legacy FX! Please use the code above to verify your email address and activate your account.",
+        validity_minutes=15
     )
+    background_tasks.add_task(
+        send_email, 
+        request.email, 
+        "Verify your Legacy FX account", 
+        email_content
+    )
+    
+    return RegisterResponse(
+        message="Registration successful. Please check your email for the verification code.",
+        user_id=user_id,
+        require_verification=True
+    )
+
+@router.post("/verify-email")
+async def verify_email(
+    request: VerifyEmailRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).where(User.email == request.email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if user.email_verification_token != request.code:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+        
+    user.email_verified = True
+    user.status = UserStatus.ACTIVE
+    user.email_verification_token = None
+    
+    await db.commit()
+    
+    # Generate access token immediately after verification
+    access_token = create_access_token(data={"sub": user.id})
+    
+    return {
+        "message": "Email verified successfully",
+        "access_token": access_token,
+        "user_id": user.id
+    }
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
@@ -92,6 +141,70 @@ async def login(
 @router.post("/logout")
 async def logout():
     return {"message": "Logged out successfully"}
+
+@router.get("/session")
+async def get_session(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get current user session information"""
+    stmt = select(User).where(User.id == current_user.id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "email_verified": user.email_verified,
+        "two_fa_enabled": user.two_factor_enabled,
+        "status": user.status,
+        "last_login": user.last_login
+    }
+
+@router.post("/resend-verification-email")
+async def resend_verification_email(
+    request: PasswordResetRequest,  # Reusing EmailStr model
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).where(User.email == request.email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        # Don't reveal if email exists for security
+        return {"message": "If an account exists with this email, a verification code has been sent"}
+    
+    if user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already verified"
+        )
+    
+    # Generate new verification code
+    verification_code = generate_otp()
+    user.email_verification_token = verification_code
+    await db.commit()
+    
+    # Send verification email in background
+    email_content = create_email_template(
+        title="Email Verification",
+        code=verification_code,
+        message="A new verification code has been requested for your Legacy FX account. Please use the code above to verify your email.",
+        validity_minutes=15
+    )
+    background_tasks.add_task(
+        send_email, 
+        request.email, 
+        "Verify your Legacy FX account", 
+        email_content
+    )
+    
+    return {"message": "Verification code has been sent to your email"}
 
 @router.post("/forgot-password")
 async def forgot_password(request: PasswordResetRequest):

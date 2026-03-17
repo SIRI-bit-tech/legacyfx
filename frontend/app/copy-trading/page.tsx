@@ -1,3 +1,5 @@
+'use client';
+
 import { DashboardLayout } from '../dashboard-layout';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
@@ -17,6 +19,8 @@ export default function CopyTradingPage() {
       setTraders(res || []);
     } catch (err) {
       console.error('Failed to load traders:', err);
+      // Set empty array as fallback if endpoint doesn't exist
+      setTraders([]);
     } finally {
       setLoading(false);
     }
