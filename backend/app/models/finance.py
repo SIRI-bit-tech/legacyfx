@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Enum, Text, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from app.database import Base
@@ -70,7 +71,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(String(36), primary_key=True, index=True)
-    user_id = Column(String(36), index=True, nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id"), index=True, nullable=False)
+    account_id = Column(String(36), ForeignKey("accounts.id"), nullable=True)
     type = Column(Enum(TransactionType), nullable=False)
     
     asset_symbol = Column(String(10), nullable=False)
@@ -82,6 +84,10 @@ class Transaction(Base):
     
     status = Column(String(20), default="COMPLETED")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="transactions")
+    account = relationship("Account", back_populates="transactions")
 
 class ColdStorageVault(Base):
     __tablename__ = "cold_storage_vaults"

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { DashboardLayout } from '../dashboard-layout';
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
@@ -98,7 +99,7 @@ export default function MarketsPage() {
                        <tr key={m.symbol} className="hover:bg-bg-tertiary/20 transition-colors group">
                           <td className="px-6 py-5">
                              <div className="flex items-center gap-3">
-                                <img src={m.image_url} alt="" className="w-8 h-8 rounded-full grayscale group-hover:grayscale-0 transition-all" />
+                                <img src={m.image_url} alt="" className="w-8 h-8 rounded-full group-hover:scale-110 transition-transform" />
                                 <div>
                                    <p className="font-bold text-text-primary">{m.name}</p>
                                    <p className="text-[10px] text-text-tertiary font-bold">{m.symbol}</p>

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Integer, Float, DateTime, Boolean, Enum, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from app.database import Base
@@ -63,4 +64,18 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
+    wallets = relationship("Wallet", back_populates="user", cascade="all, delete-orphan")
+    trades = relationship("Trade", back_populates="user", cascade="all, delete-orphan")
+    staking_positions = relationship("StakingPosition", back_populates="user", cascade="all, delete-orphan")
+    signals = relationship("Signal", back_populates="analyst", cascade="all, delete-orphan")
+    login_history = relationship("LoginHistory", back_populates="user", cascade="all, delete-orphan")
+    referrals_made = relationship("Referral", foreign_keys="Referral.referrer_id", back_populates="referrer")
+    referrals_received = relationship("Referral", foreign_keys="Referral.referred_id", back_populates="referred")
+    real_estate_investments = relationship("RealEstateInvestment", back_populates="user", cascade="all, delete-orphan")
+    mining_subscriptions = relationship("MiningSubscription", back_populates="user", cascade="all, delete-orphan")
+    accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
 

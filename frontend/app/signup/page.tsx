@@ -50,7 +50,7 @@ export default function SignupPage() {
       
       setSuccess(true);
       setTimeout(() => {
-        window.location.href = '/login';
+        window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`;
       }, 2000);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -65,7 +65,7 @@ export default function SignupPage() {
         <div className="bg-bg-secondary border border-color-success rounded-lg p-8 text-center max-w-md">
           <h2 className="text-color-success text-2xl font-bold mb-2">Success!</h2>
           <p className="text-text-secondary mb-4">Check your email to verify your account</p>
-          <p className="text-text-tertiary text-sm">Redirecting to login...</p>
+          <p className="text-text-tertiary text-sm">Redirecting to verification...</p>
         </div>
       </div>
     );

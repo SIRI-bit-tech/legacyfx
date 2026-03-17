@@ -162,7 +162,7 @@ export default function DashboardPage() {
               {prices.slice(0, 10).map((p: any) => (
                 <div key={p.symbol} className="px-6 py-4 flex items-center justify-between border-b border-color-border/30 hover:bg-bg-tertiary/30 transition">
                   <div className="flex items-center gap-3">
-                     <img src={p.image_url} alt="" className="w-6 h-6 rounded-full grayscale" />
+                     <img src={p.image_url} alt="" className="w-6 h-6 rounded-full" />
                      <div>
                         <p className="font-black text-xs text-text-primary">{p.symbol}</p>
                         <p className="text-[10px] text-text-tertiary">{p.name}</p>

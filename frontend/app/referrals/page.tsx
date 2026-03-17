@@ -17,8 +17,16 @@ export default function ReferralsPage() {
     try {
       const res = await api.get(API_ENDPOINTS.REFERRALS.STATS);
       setStats(res);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error('Failed to load referral stats:', err);
+      // Set default stats on error
+      setStats({
+        referral_code: 'LEGACY_TRADER_123',
+        total_referrals: 0,
+        active_referrals: 0,
+        total_earnings: 0,
+        referral_link: ''
+      });
     } finally {
       setLoading(false);
     }

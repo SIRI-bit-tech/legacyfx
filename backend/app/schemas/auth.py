@@ -25,8 +25,19 @@ class TokenResponse(BaseModel):
     expires_in: int = 900
 
 
+class RegisterResponse(BaseModel):
+    message: str
+    user_id: str
+    require_verification: bool = True
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
 
 
 class PasswordResetConfirm(BaseModel):
