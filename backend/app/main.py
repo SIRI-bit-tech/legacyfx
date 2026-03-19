@@ -30,11 +30,14 @@ from app.models.notification import Notification
 from app.models.security import LoginHistory
 from app.models.referral import Referral
 from app.models.support import SupportTicket, TicketMessage
+from app.models.copy_trading import CopyTrading, CopyTradeHistory
+from app.models.settings import SystemSettings
+from app.models.mining_stats import MiningStats
 
 from app.routes import (
     auth, users, trading, markets, deposits, 
     withdrawals, investments, mining, staking, 
-    signals, subscriptions, admin
+    signals, subscriptions, admin, copy_trading
 )
 
 settings = get_settings()
@@ -49,6 +52,9 @@ async def lifespan(app: FastAPI):
     # from alembic import command
     # alembic_cfg = Config("alembic.ini")
     # command.upgrade(alembic_cfg, "head")
+    # Start Background Tasks
+    from app.tasks.mining_updater import start_mining_background_tasks
+    start_mining_background_tasks()
     
     yield
     
@@ -91,6 +97,7 @@ app.include_router(mining.router)
 app.include_router(staking.router)
 app.include_router(signals.router)
 app.include_router(subscriptions.router)
+app.include_router(copy_trading.router)
 app.include_router(admin.router)
 
 @app.exception_handler(RequestValidationError)

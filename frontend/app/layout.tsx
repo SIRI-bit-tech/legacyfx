@@ -21,6 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000'),
   title: 'Legacy FX | Institutional Digital Asset Exchange & Matching Engine',
   description: 'Trade cryptocurrencies with institutional-grade tools on Legacy FX. Experience under 1.2ms latency, deep liquidity, and Swiss-grade custodial security. Access 350+ assets including Bitcoin, Ethereum, and Equity Indices.',
   keywords: 'crypto exchange, digital assets, bitcoin trading, institutional crypto, cryptocurrency matching engine, ethereum, high frequency trading, secure crypto storage, Legacy FX, blockchain finance',

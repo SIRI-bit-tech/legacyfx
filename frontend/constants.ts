@@ -38,9 +38,14 @@ export const API_ENDPOINTS = {
     HISTORY: "/trading/history",
     GET: (id: string) => `/trading/${id}`,
     PORTFOLIO: "/trading/portfolio",
-    COPY_TRADERS: "/trading/copy/traders",
-    COPY_ACTIVE: "/trading/copy/active",
-    COPY_STOP: (id: string) => `/trading/copy/${id}`,
+  },
+  COPY_TRADING: {
+    MASTER_TRADERS: "/copy-trading/master-traders",
+    SEARCH_TRADERS: "/copy-trading/search-traders",
+    START: "/copy-trading/start",
+    STOP: "/copy-trading/stop",
+    STATUS: (id: string) => `/copy-trading/status/${id}`,
+    HISTORY: (id: string) => `/copy-trading/history/${id}`,
   },
   WALLETS: {
     LIST: "/wallets",
@@ -85,6 +90,7 @@ export const API_ENDPOINTS = {
     EARNINGS: "/mining/earnings",
     CANCEL: (id: string) => `/mining/${id}/cancel`,
     STATS: "/mining/stats",
+    STATS_ALL: "/mining/stats/all",
   },
   SIGNALS: {
     LIST: "/signals",

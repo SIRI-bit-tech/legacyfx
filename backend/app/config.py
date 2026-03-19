@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = ""
     BINANCE_SECRET_KEY: str = ""
 
+    # Bybit
+    BYBIT_API_KEY: str = ""
+    BYBIT_SECRET_KEY: str = ""
+    BYBIT_API_URL: str = "https://api.bybit.com"
+
     # Ably
     ABLY_API_KEY: str = ""
     ABLY_KEY: str = ""

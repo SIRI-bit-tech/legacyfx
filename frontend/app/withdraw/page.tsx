@@ -49,12 +49,29 @@ export default function WithdrawPage() {
   }
 
 
-  const currentAsset = assets.find(a => a.symbol === selectedAsset) || assets[0] || {
-    name: 'Bitcoin',
-    symbol: 'BTC',
-    balance: 0,
-    fee: 0.0005
-  };
+  const currentAsset = assets.find(a => a.symbol === selectedAsset) || assets[0] || null;
+
+  // Empty state when no assets available
+  if (!currentAsset) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-2xl mx-auto p-8">
+          <div className="bg-bg-secondary border border-color-border p-8 rounded-2xl text-center">
+            <div className="w-16 h-16 rounded-full bg-bg-tertiary flex items-center justify-center mx-auto mb-6">
+              <i className="pi pi-wallet text-2xl text-text-tertiary"></i>
+            </div>
+            <h2 className="text-xl font-bold text-text-primary mb-3">No Assets Available</h2>
+            <p className="text-text-tertiary mb-6">
+              You don't have any assets available for withdrawal. Deposit funds to your account to enable withdrawals.
+            </p>
+            <button className="bg-color-primary hover:bg-color-primary-hover text-bg-primary px-6 py-3 rounded-xl font-bold text-sm transition">
+              Deposit Funds
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -94,7 +111,7 @@ export default function WithdrawPage() {
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder={`Paste your ${currentAsset.name} address`}
+                placeholder={currentAsset ? `Paste your ${currentAsset.name} address` : "Paste your address"}
                 className="w-full bg-bg-tertiary border border-color-border rounded px-4 py-3 focus:outline-none focus:border-color-primary transition"
               />
             </div>
@@ -114,7 +131,7 @@ export default function WithdrawPage() {
                 />
                 <div className="absolute right-4 top-2 text-xs flex flex-col items-end">
                   <button
-                    onClick={() => setAmount(currentAsset.balance.toString())}
+                    onClick={() => currentAsset && setAmount(currentAsset.balance.toString())}
                     className="text-color-primary hover:text-color-primary-hover font-bold mb-0.5"
                   >
                     MAX
@@ -141,7 +158,7 @@ export default function WithdrawPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-text-secondary text-xs">Net Amount</span>
                   <span className="font-mono text-color-primary font-bold">
-                    {amount ? Math.max(0, parseFloat(amount) - currentAsset.fee).toFixed(8) : '0.00'} {currentAsset.symbol}
+                    {amount && currentAsset ? Math.max(0, parseFloat(amount) - currentAsset.fee).toFixed(8) : '0.00'} {currentAsset.symbol}
                   </span>
                 </div>
                 <div className="pt-4 border-t border-color-border">

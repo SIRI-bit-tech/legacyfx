@@ -5,6 +5,7 @@ import enum
 from app.database import Base
 
 class MiningStatus(str, enum.Enum):
+    PENDING = "PENDING"
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
     COMPLETED = "COMPLETED"

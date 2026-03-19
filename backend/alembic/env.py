@@ -19,6 +19,8 @@ from app.models.finance import Deposit, Withdrawal, Transaction, ColdStorageVaul
 from app.models.investment import InvestmentProduct, InvestmentPosition, CopyTrader, CopySession
 from app.models.real_estate import RealEstateProperty, RealEstateInvestment
 from app.models.mining import MiningPlan, MiningSubscription
+from app.models.mining_stats import MiningStats
+from app.models.settings import SystemSettings
 from app.models.notification import Notification
 from app.models.referral import Referral
 from app.models.security import LoginHistory

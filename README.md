@@ -157,6 +157,9 @@ alembic upgrade head
 
 # Start server
 uvicorn app.main:app --reload
+
+taskkill /F /IM python.exe
+
 ```
 
 ### Database Migrations

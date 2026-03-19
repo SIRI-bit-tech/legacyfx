@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from app.database import get_db
@@ -47,6 +47,7 @@ async def register(
         status=UserStatus.PENDING_VERIFICATION,
         email_verified=False,
         email_verification_token=verification_code,
+        email_verification_expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
         referral_code=str(uuid.uuid4())[:8].upper(),
         referred_by=request.referral_code
     )
@@ -83,15 +84,20 @@ async def verify_email(
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    if user.email_verification_token != request.code:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
+    generic_error = "Invalid or expired verification code"
+    
+    if (
+        not user or 
+        user.email_verification_token != request.code or 
+        not user.email_verification_expires_at or 
+        (user.email_verification_expires_at.replace(tzinfo=timezone.utc) if user.email_verification_expires_at.tzinfo is None else user.email_verification_expires_at) < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=generic_error)
         
     user.email_verified = True
     user.status = UserStatus.ACTIVE
     user.email_verification_token = None
+    user.email_verification_expires_at = None
     
     await db.commit()
     
@@ -180,10 +186,7 @@ async def resend_verification_email(
         return {"message": "If an account exists with this email, a verification code has been sent"}
     
     if user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is already verified"
-        )
+        return {"message": "If an account exists with this email, a verification code has been sent"}
     
     # Generate new verification code
     verification_code = generate_otp()

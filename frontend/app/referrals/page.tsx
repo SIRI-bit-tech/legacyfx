@@ -8,6 +8,7 @@ import { API_ENDPOINTS } from '@/constants';
 export default function ReferralsPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     loadReferralStats();
@@ -19,14 +20,8 @@ export default function ReferralsPage() {
       setStats(res);
     } catch (err) {
       console.error('Failed to load referral stats:', err);
-      // Set default stats on error
-      setStats({
-        referral_code: 'LEGACY_TRADER_123',
-        total_referrals: 0,
-        active_referrals: 0,
-        total_earnings: 0,
-        referral_link: ''
-      });
+      setStats(null);
+      setIsError(true);
     } finally {
       setLoading(false);
     }
@@ -72,12 +67,26 @@ export default function ReferralsPage() {
            </p>
         </div>
 
+        {/* Error State */}
+        {isError && !loading && (
+          <div className="bg-bg-secondary border border-color-danger p-6 rounded-2xl mb-16">
+            <div className="flex items-center gap-3 mb-2">
+              <i className="pi pi-exclamation-triangle text-color-danger"></i>
+              <h3 className="text-lg font-bold text-text-primary">Unable to Load Referral Stats</h3>
+            </div>
+            <p className="text-sm text-text-tertiary">
+              We couldn't retrieve your referral statistics. Please check your connection and try again later.
+            </p>
+          </div>
+        )}
+
         {/* Stats Grid */}
+        {!isError && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
            {[
              { label: 'Total Referrals', value: stats?.referral_count || '0', icon: 'pi-user-plus', color: 'text-color-primary' },
-             { label: 'Active Traders', value: '0', icon: 'pi-chart-line', color: 'text-color-success' },
-             { label: 'Total Earnings', value: '$0.00', icon: 'pi-dollar', color: 'text-color-warning' },
+             { label: 'Active Traders', value: stats?.active_referrals || '0', icon: 'pi-chart-line', color: 'text-color-success' },
+             { label: 'Total Earnings', value: stats?.total_earnings ? `$${stats.total_earnings}` : '$0.00', icon: 'pi-dollar', color: 'text-color-warning' },
            ].map((s, i) => (
              <div key={i} className="bg-bg-secondary border border-color-border p-8 rounded-2xl flex flex-col items-center text-center shadow-xl">
                 <div className={`w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center text-xl mb-4 ${s.color}`}>
@@ -88,6 +97,7 @@ export default function ReferralsPage() {
              </div>
            ))}
         </div>
+        )}
 
         {/* How it Works */}
         <div className="space-y-8">

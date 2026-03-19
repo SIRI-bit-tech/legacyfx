@@ -6,11 +6,17 @@ from datetime import datetime
 class MiningPlanResponse(BaseModel):
     id: str
     name: str
-    hashrate: float
-    daily_earning: float
-    duration_days: int
+    coin_symbol: str
+    hashrate: str
+    daily_earnings: float
+    daily_usd_profit: Optional[float] = None
+    total_coin_profit: Optional[float] = None
+    total_usd_profit: Optional[float] = None
+    roi_percentage: Optional[float] = None
+    current_price: Optional[float] = None
+    duration_days: float
     price: float
-    status: str
+    is_active: bool
 
     class Config:
         from_attributes = True
