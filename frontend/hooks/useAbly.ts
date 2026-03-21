@@ -1,93 +1,99 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import * as Ably from 'ably';
 
-// NOTE: For production, use token authentication instead of API key.
-// Create a server endpoint at /api/ably/token that returns:
-// { tokenRequest: { ... } }
-// Then change authUrl to: '/api/ably/token'
-const ABLY_KEY = process.env.NEXT_PUBLIC_ABLY_KEY;
-
-// Validate API key and warn about security risks
-function validateAblyKey(key: string | undefined): { valid: boolean; isPlaceholder: boolean } {
-  if (!key) {
-    return { valid: false, isPlaceholder: true };
-  }
-
-  // Check for common placeholder patterns
-  const placeholderPatterns = [
-    'your_ably',
-    'your_ably_api_key',
-    'replace_me',
-    'xxx',
-    'test_',
-    'demo_'
-  ];
-
-  const isPlaceholder = placeholderPatterns.some(pattern =>
-    key.toLowerCase().includes(pattern)
-  );
-
-  if (isPlaceholder) {
-    console.error('🚨 SECURITY WARNING: Using a placeholder Ably API key in client-side code!');
-    console.error('This exposes your full API key to the browser. For production:');
-    console.error('1. Use token authentication (authUrl) instead');
-    console.error('2. Create a server endpoint that generates short-lived tokens');
-    console.error('3. Never expose API keys in client-side code');
-  }
-
-  return { valid: true, isPlaceholder };
-}
+// Token-based authentication for Ably
+// The API key is now only used on the backend to generate short-lived tokens
+// This provides better security and fine-grained access control
 
 export function useAbly(channelName: string, onMessage?: (message: any) => void) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Store the message handler in a ref to prevent connection recreation
+  const messageHandlerRef = useRef(onMessage);
+  const ablyRef = useRef<Ably.Realtime | null>(null);
+  const channelRef = useRef<any>(null);
+  const subscriptionRef = useRef<(() => void) | null>(null);
+
+  // Update the ref when onMessage changes
   useEffect(() => {
-    const { valid, isPlaceholder } = validateAblyKey(ABLY_KEY);
+    messageHandlerRef.current = onMessage;
+  }, [onMessage]);
 
-    if (!valid || isPlaceholder) {
-      console.warn('Ably API key not configured or using placeholder - real-time updates disabled');
-      setError('Ably not configured');
-      return;
-    }
-
-    // SECURITY FIX: Use token auth URL instead of direct API key
-    // For production, create a server endpoint that generates tokens
-    // The endpoint should return: { tokenRequest: { keyName, clientId, timestamp, nonce, mac } }
+  useEffect(() => {
+    // Initialize Ably with token-based authentication
+    // The authUrl endpoint will generate short-lived tokens with appropriate permissions
     const ably = new Ably.Realtime({
-      // Use authUrl for token authentication (recommended for production)
-      // authUrl: '/api/ably/token',
-      // For now, we must use key but this is insecure for master keys
-      // In production, use a restricted API key with only subscribe permission
-      key: ABLY_KEY,
+      authUrl: '/api/ably/token',
       // Add closeOnUnload for proper cleanup
       closeOnUnload: true
     });
+
     const channel = ably.channels.get(channelName);
 
-    const connectionStateListener = (stateChange: any) => {
-      if (stateChange.current === 'connected') {
-        setIsConnected(true);
-      } else if (stateChange.current === 'disconnected' || stateChange.current === 'failed') {
-        setIsConnected(false);
-      }
+    // Store references for cleanup
+    ablyRef.current = ably;
+    channelRef.current = channel;
+
+    // Define connection state listeners with proper references
+    const handleConnected = () => {
+      setIsConnected(true);
+      setError(null);
     };
 
-    ably.connection.on('connected', () => setIsConnected(true));
-    ably.connection.on('disconnected', () => setIsConnected(false));
-    ably.connection.on('failed', (err: any) => setError(err.message));
+    const handleDisconnected = () => {
+      setIsConnected(false);
+    };
 
-    if (onMessage) {
-      channel.subscribe((message) => {
-        onMessage(message);
-      });
+    const handleFailed = (err: any) => {
+      setError(err.message || 'Connection failed');
+      setIsConnected(false);
+    };
+
+    // Register connection listeners
+    ably.connection.on('connected', handleConnected);
+    ably.connection.on('disconnected', handleDisconnected);
+    ably.connection.on('failed', handleFailed);
+
+    // Set up message subscription if handler is provided
+    let unsubscribe: (() => void) | null = null;
+    if (messageHandlerRef.current) {
+      const messageHandler = (message: any) => {
+        // Call the current handler from ref
+        if (messageHandlerRef.current) {
+          messageHandlerRef.current(message);
+        }
+      };
+
+      channel.subscribe(messageHandler);
+
+      // Store unsubscribe function for cleanup
+      unsubscribe = () => {
+        channel.unsubscribe(messageHandler);
+      };
+      subscriptionRef.current = unsubscribe;
     }
 
     return () => {
-      channel.unsubscribe();
+      // Clean up message subscription first
+      if (unsubscribe) {
+        unsubscribe();
+        subscriptionRef.current = null;
+      }
+
+      // Remove connection listeners using the same references
+      ably.connection.off('connected', handleConnected);
+      ably.connection.off('disconnected', handleDisconnected);
+      ably.connection.off('failed', handleFailed);
+
+      // Close connection
       ably.close();
+
+      // Clear refs
+      ablyRef.current = null;
+      channelRef.current = null;
     };
-  }, [channelName, onMessage]);
+  }, [channelName]); // Only depend on channelName, not onMessage
 
   return { isConnected, error };
 }

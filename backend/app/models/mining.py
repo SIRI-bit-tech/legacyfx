@@ -30,8 +30,9 @@ class MiningSubscription(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     plan_id = Column(String, ForeignKey("mining_plans.id"), nullable=False)
-    status = Column(Enum(MiningStatus), default=MiningStatus.ACTIVE)
+    status = Column(Enum(MiningStatus), default=MiningStatus.PENDING)
     total_earnings = Column(Float, default=0.0)
+    last_paid_at = Column(DateTime, nullable=True)  # Track last payout date for idempotency
     start_date = Column(DateTime, default=datetime.utcnow)
     end_date = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)

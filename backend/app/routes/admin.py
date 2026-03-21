@@ -4,6 +4,7 @@ from sqlalchemy import select, func, update
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
+import logging
 
 from app.database import get_db
 from app.models.user import User, UserTier
@@ -15,6 +16,8 @@ from app.utils.market import get_live_price
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+logger = logging.getLogger(__name__)
 
 # Helper dependency to check if user is admin
 async def require_admin(current_user: User = Depends(get_current_user)):
@@ -87,9 +90,14 @@ async def approve_deposit(
         try:
             price = await get_live_price(deposit.asset_symbol)
             usd_val = deposit.amount * price
-        except Exception:
-            # If price fetch fails, log and continue with original amount
-            pass
+        except Exception as e:
+            # Log price fetch failure and use conservative fallback
+            logger.error(f"Failed to fetch live price for {deposit.asset_symbol} in deposit {deposit.id}: {str(e)}")
+            # Use conservative fallback prices to avoid over-crediting
+            fallback_prices = {"BTC": 25000.0, "ETH": 1500.0}  # Documented conservative fallbacks
+            usd_val = deposit.amount * fallback_prices.get(deposit.asset_symbol, 1.0)
+            logger.warning(f"Using fallback price for {deposit.asset_symbol}: ${fallback_prices.get(deposit.asset_symbol, 1.0)}")
+    
     user.account_balance += usd_val
     user.trading_balance += usd_val
     
@@ -170,11 +178,11 @@ async def approve_mining_subscription(
         raise HTTPException(status_code=400, detail="Subscription not pending")
     
     # Verify payment was received - check for a confirmed deposit from this user
-    # matching or exceeding the plan price
+    # matching or exceeding the plan price (use fiat_amount for USD comparison)
     payment_stmt = select(Deposit).where(
         Deposit.user_id == user.id,
         Deposit.status == DepositStatus.CONFIRMED,
-        Deposit.amount >= plan.price  # Amount should cover the plan
+        Deposit.fiat_amount >= plan.price  # Use USD equivalent for comparison
     ).order_by(Deposit.created_at.desc()).limit(1)
     
     payment_result = await db.execute(payment_stmt)

@@ -37,7 +37,7 @@ from app.models.mining_stats import MiningStats
 from app.routes import (
     auth, users, trading, markets, deposits, 
     withdrawals, investments, mining, staking, 
-    signals, subscriptions, admin, copy_trading
+    signals, subscriptions, admin, copy_trading, ably
 )
 
 settings = get_settings()
@@ -59,6 +59,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # On shutdown
+    from app.tasks.mining_updater import scheduler
+    if scheduler.running:
+        scheduler.shutdown(wait=True)
     await engine.dispose()
 
 
@@ -99,6 +102,7 @@ app.include_router(signals.router)
 app.include_router(subscriptions.router)
 app.include_router(copy_trading.router)
 app.include_router(admin.router)
+app.include_router(ably.router, prefix="/api/ably", tags=["ably"])
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

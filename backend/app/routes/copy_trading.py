@@ -8,6 +8,7 @@ import logging
 
 from app.database import get_db
 from app.models.user import User
+from app.models.copy_trading import CopyTrading, CopyModeEnum, CopyStatus
 from app.utils.auth import get_current_user
 from app.schemas.copy_trading import (
     MasterTraderResponse,
@@ -85,11 +86,42 @@ async def start_copy_trading(
             detail=result.get("error", "Failed to start copy trading on engine")
         )
     
+    # Extract copy ID from result
+    copy_id = result.get("copy_id")
+    if not copy_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Copy trading started but no copy ID returned from engine"
+        )
+    
+    # Get trader info for username
+    trader_info = result.get("trader_info", {})
+    trader_username = trader_info.get("username", f"trader_{request.trader_id}")
+    
+    # Create and persist the copy trading session
+    new_session = CopyTrading(
+        user_id=current_user.id,
+        bitget_copy_id=copy_id,
+        bitget_trader_id=request.trader_id,
+        trader_username=trader_username,
+        copy_mode=CopyModeEnum(request.copy_mode),
+        status=CopyStatus.ACTIVE,
+        fixed_amount=request.fixed_amount if request.copy_mode == "fixed_amount" else None,
+        leverage=request.leverage if request.copy_mode != "fixed_amount" else 1.0,
+        started_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_session)
+    await db.commit()
+    await db.refresh(new_session)
+    
     return {
         "success": True,
         "message": "Copy trading activated successfully on Bybit",
         "trader_id": request.trader_id,
-        "started_at": datetime.now(timezone.utc)
+        "copy_id": copy_id,
+        "session_id": new_session.id,
+        "started_at": new_session.started_at
     }
 
 
