@@ -14,6 +14,7 @@ interface CoinStats {
     difficulty: string;
     block_time_avg: number;
     market_price_usd: number;
+    price_change?: number;
     data_available: boolean;
 }
 
@@ -177,9 +178,9 @@ export const MultiCoinStatsCard: React.FC<MultiCoinStatsCardProps> = ({ initialC
                     <div className="bg-card/50 backdrop-blur-md border border-border/50 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-xs text-text-tertiary uppercase tracking-wider">Market Price</p>
-                            {getPriceChangeIcon(0)}
+                            {getPriceChangeIcon(currentStats.price_change || 0)}
                         </div>
-                        <p className={`text-lg font-bold font-mono ${getPriceChangeColor(0)}`}>
+                        <p className={`text-lg font-bold font-mono ${getPriceChangeColor(currentStats.price_change || 0)}`}>
                             {formatPrice(currentStats.market_price_usd)}
                         </p>
                         <p className="text-xs text-text-tertiary mt-1">{currentStats.algorithm}</p>

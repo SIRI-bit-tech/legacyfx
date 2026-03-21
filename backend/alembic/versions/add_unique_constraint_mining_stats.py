@@ -1,7 +1,7 @@
 """Add unique constraint to mining_stats coin_symbol
 
 Revision ID: a1b2c3d4e5f6
-Revises: 7535a4273f76
+Revises: e227a0f0f4d2
 Create Date: 2026-03-19 11:46:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
-down_revision: Union[str, Sequence[str], None] = '7535a4273f76'
+down_revision: Union[str, Sequence[str], None] = 'e227a0f0f4d2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -26,11 +26,11 @@ def upgrade() -> None:
     op.execute("""
         DELETE FROM mining_stats 
         WHERE id NOT IN (
-            SELECT max_id FROM (
-                SELECT MAX(id) as max_id, coin_symbol 
-                FROM mining_stats 
-                GROUP BY coin_symbol
-            ) AS grouped
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY coin_symbol ORDER BY updated_at DESC) as rn
+                FROM mining_stats
+            ) as t
+            WHERE rn = 1
         )
     """)
     

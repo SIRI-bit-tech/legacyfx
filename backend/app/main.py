@@ -102,7 +102,7 @@ app.include_router(signals.router)
 app.include_router(subscriptions.router)
 app.include_router(copy_trading.router)
 app.include_router(admin.router)
-app.include_router(ably.router, prefix="/api/ably", tags=["ably"])
+app.include_router(ably.router)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

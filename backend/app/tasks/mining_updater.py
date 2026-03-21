@@ -7,7 +7,8 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.database import async_session, SQLALCHEMY_DATABASE_URL
+from app.config import get_settings
+from app.database import async_session
 from app.services.mining_data import mining_data_service
 from app.models.mining import MiningSubscription, MiningStatus, MiningPlan
 from app.models.user import User
@@ -15,9 +16,13 @@ from app.models.finance import Transaction, TransactionType
 
 logger = logging.getLogger(__name__)
 
+settings = get_settings()
+# APScheduler SQLAlchemyJobStore needs a synchronous driver (psycopg2)
+SQLALCHEMY_SYNC_URL = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").split("?")[0]
+
 # Initialize Scheduler with persistent job store for multi-worker deployments
 jobstores = {
-    'default': SQLAlchemyJobStore(url=SQLALCHEMY_DATABASE_URL)
+    'default': SQLAlchemyJobStore(url=SQLALCHEMY_SYNC_URL)
 }
 scheduler = AsyncIOScheduler(jobstores=jobstores)
 

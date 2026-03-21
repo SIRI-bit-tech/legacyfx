@@ -61,6 +61,9 @@ class User(Base):
     referred_by = Column(String(36), nullable=True) 
     referral_earnings = Column(Float, default=0.0)
     
+    # Feature Access
+    copy_trading_enabled = Column(Boolean, default=False)
+    
     # Timestamps
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from ably import AblyRest
 from app.config import get_settings
 from app.models.user import User
-from app.dependencies import get_current_user
+from app.utils.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,7 +46,7 @@ async def get_ably_token(current_user: User = Depends(get_current_user)):
             # Mining stats channel (public data)
             "mining-stats": ["subscribe"],
             # Copy trading updates (if user has copy trading enabled)
-            "copy-trading": ["subscribe"] if hasattr(current_user, 'copy_trading_enabled') and current_user.copy_trading_enabled else None,
+            "copy-trading": ["subscribe"] if current_user.copy_trading_enabled else None,
         }
         
         # Remove None values from capabilities
@@ -54,22 +54,23 @@ async def get_ably_token(current_user: User = Depends(get_current_user)):
         
         # Generate token request
         token_request = ably_rest.auth.create_token_request(
-            capabilities=capabilities,
+            capability=capabilities,
             client_id=f"user-{current_user.id}",  # Unique identifier for the client
-            ttl=3600,  # Token valid for 1 hour
+            ttl=3600000,  # Token valid for 1 hour (in milliseconds)
         )
         
         return JSONResponse(content={
-            "tokenRequest": {
-                "keyName": token_request.key_name,
-                "clientId": token_request.client_id,
-                "timestamp": token_request.timestamp,
-                "nonce": token_request.nonce,
-                "mac": token_request.mac,
-                "ttl": token_request.ttl
-            }
+            "keyName": token_request.key_name,
+            "clientId": token_request.client_id,
+            "capability": token_request.capability,
+            "timestamp": token_request.timestamp,
+            "nonce": token_request.nonce,
+            "mac": token_request.mac,
+            "ttl": token_request.ttl
         })
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error generating Ably token: {str(e)}")
         raise HTTPException(
