@@ -48,9 +48,15 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-body);
-  /* scroll-behavior removed - use data-scroll-behavior attribute instead */
+  /* scroll-behavior implemented via data-scroll-behavior attribute */
+  scroll-behavior: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html[data-scroll-behavior="smooth"],
+html[data-scroll-behavior="smooth"] body {
+  scroll-behavior: smooth;
 }
 
 /* Typography */

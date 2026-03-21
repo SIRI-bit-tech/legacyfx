@@ -12,6 +12,7 @@ python-dotenv
 requests
 httpx
 ably
+apscheduler
 redis
 pyotp
 qrcode

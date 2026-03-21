@@ -38,6 +38,7 @@ class User(Base):
     # Auth & Security
     email_verified = Column(Boolean, default=False)
     email_verification_token = Column(String(100), nullable=True)
+    email_verification_expires_at = Column(DateTime, nullable=True)
     two_factor_enabled = Column(Boolean, default=False)
     two_factor_secret = Column(String(100), nullable=True)
     backup_codes = Column(Text, nullable=True) # JSON string
@@ -72,8 +73,8 @@ class User(Base):
     staking_positions = relationship("StakingPosition", back_populates="user", cascade="all, delete-orphan")
     signals = relationship("Signal", back_populates="analyst", cascade="all, delete-orphan")
     login_history = relationship("LoginHistory", back_populates="user", cascade="all, delete-orphan")
-    referrals_made = relationship("Referral", foreign_keys="Referral.referrer_id", back_populates="referrer")
-    referrals_received = relationship("Referral", foreign_keys="Referral.referred_id", back_populates="referred")
+    referrals_made = relationship("Referral", foreign_keys="[Referral.referrer_id]", back_populates="referrer")
+    referrals_received = relationship("Referral", foreign_keys="[Referral.referred_id]", back_populates="referred")
     real_estate_investments = relationship("RealEstateInvestment", back_populates="user", cascade="all, delete-orphan")
     mining_subscriptions = relationship("MiningSubscription", back_populates="user", cascade="all, delete-orphan")
     accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
