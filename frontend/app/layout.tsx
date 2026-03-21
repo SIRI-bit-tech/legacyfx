@@ -21,9 +21,15 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 // Deployment-aware URL configuration
-const deploymentUrl = process.env.NEXT_PUBLIC_DEPLOYMENT_URL || 
-                      process.env.VERCEL_URL || 
-                      (process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000');
+const getDeploymentUrl = () => {
+  const url = process.env.NEXT_PUBLIC_DEPLOYMENT_URL || 
+              process.env.VERCEL_URL || 
+              (process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000');
+  
+  return url.startsWith('http') ? url : `https://${url}`;
+};
+
+const deploymentUrl = getDeploymentUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(deploymentUrl),

@@ -182,6 +182,7 @@ async def approve_mining_subscription(
     payment_stmt = select(Deposit).where(
         Deposit.user_id == user.id,
         Deposit.status == DepositStatus.CONFIRMED,
+        Deposit.fiat_amount.isnot(None),  # Explicitly handle NULL fiat_amount
         Deposit.fiat_amount >= plan.price  # Use USD equivalent for comparison
     ).order_by(Deposit.created_at.desc()).limit(1)
     

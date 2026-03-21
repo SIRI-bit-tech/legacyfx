@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from typing import List, Dict, Any
 from datetime import datetime, timezone
@@ -112,8 +113,18 @@ async def start_copy_trading(
     )
     
     db.add(new_session)
-    await db.commit()
-    await db.refresh(new_session)
+    try:
+        await db.commit()
+        await db.refresh(new_session)
+    except IntegrityError:
+        await db.rollback()
+        # Fetch existing record
+        existing_stmt = select(CopyTrading).filter_by(bitget_copy_id=copy_id)
+        existing_res = await db.execute(existing_stmt)
+        new_session = existing_res.scalar_one_or_none()
+        
+        if not new_session:
+            raise
     
     return {
         "success": True,

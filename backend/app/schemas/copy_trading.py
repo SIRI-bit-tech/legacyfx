@@ -31,7 +31,7 @@ class StartCopyTradingRequest(BaseModel):
     leverage: Optional[float] = Field(1.0, gt=0, description="Leverage multiplier for proportional mode")  # 1x leverage (no leverage)
     
     # For FIXED_AMOUNT mode
-    fixed_amount: Optional[float] = Field(None, ge=0, description="Fixed USD amount per trade for fixed amount mode")  # USD amount per trade
+    fixed_amount: Optional[float] = Field(None, gt=0, description="Fixed USD amount per trade for fixed amount mode")  # USD amount per trade
     
     # For PERCENTAGE mode
     percentage: Optional[float] = Field(None, gt=0, le=100, description="Percentage of trader's position to copy (0-100)")  # 10, 25, 50, 100 (% of trader's position)
@@ -39,9 +39,9 @@ class StartCopyTradingRequest(BaseModel):
     # Risk Management
     max_position_size: float = Field(5000.0, ge=0, description="Maximum USD per position")  # Max USD per position
     enable_stop_loss: bool = True
-    stop_loss_percentage: float = Field(5.0, ge=0, le=100, description="Stop loss percentage (0-100)")  # 5% stop loss
+    stop_loss_percentage: float = Field(5.0, gt=0, le=100, description="Stop loss percentage (0-100)")  # 5% stop loss
     enable_take_profit: bool = True
-    take_profit_percentage: float = Field(10.0, ge=0, le=100, description="Take profit percentage (0-100)")  # 10% take profit
+    take_profit_percentage: float = Field(10.0, gt=0, le=100, description="Take profit percentage (0-100)")  # 10% take profit
     max_daily_copy_trades: int = Field(20, ge=0, description="Maximum number of trades per day")  # Max trades per day
     
     # Safety

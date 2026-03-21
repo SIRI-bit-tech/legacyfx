@@ -1,7 +1,7 @@
 """Add mining stats and system settings tables
 
 Revision ID: e227a0f0f4d2
-Revises: 2bdc633888b3
+Revises: 7535a4273f76
 Create Date: 2026-03-18 21:18:55.805813
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'e227a0f0f4d2'
-down_revision: Union[str, Sequence[str], None] = '2bdc633888b3'
+down_revision: Union[str, Sequence[str], None] = '7535a4273f76'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
