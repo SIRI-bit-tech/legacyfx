@@ -59,6 +59,14 @@ html[data-scroll-behavior="smooth"] body {
   scroll-behavior: smooth;
 }
 
+/* Respect users' reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  html[data-scroll-behavior="smooth"],
+  html[data-scroll-behavior="smooth"] body {
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);

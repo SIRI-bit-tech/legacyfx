@@ -68,14 +68,14 @@ export const MultiCoinStatsCard: React.FC<MultiCoinStatsCardProps> = ({ initialC
         }
     };
 
-    const getPriceChangeIcon = (price: number) => {
-        if (price === 0) return <Minus className="w-4 h-4 text-gray-400" />;
-        return price > 1000 ? <TrendingUp className="w-4 h-4 text-green-500" /> : <TrendingDown className="w-4 h-4 text-red-500" />;
+    const getPriceChangeIcon = (change: number) => {
+        if (change === 0) return <Minus className="w-4 h-4 text-gray-400" />;
+        return change > 0 ? <TrendingUp className="w-4 h-4 text-green-500" /> : <TrendingDown className="w-4 h-4 text-red-500" />;
     };
 
-    const getPriceChangeColor = (price: number) => {
-        if (price === 0) return 'text-gray-400';
-        return price > 1000 ? 'text-green-500' : 'text-red-500';
+    const getPriceChangeColor = (change: number) => {
+        if (change === 0) return 'text-gray-400';
+        return change > 0 ? 'text-green-500' : 'text-red-500';
     };
 
     const formatPrice = (price: number) => {
@@ -177,9 +177,9 @@ export const MultiCoinStatsCard: React.FC<MultiCoinStatsCardProps> = ({ initialC
                     <div className="bg-card/50 backdrop-blur-md border border-border/50 rounded-xl p-4">
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-xs text-text-tertiary uppercase tracking-wider">Market Price</p>
-                            {getPriceChangeIcon(currentStats.market_price_usd)}
+                            {getPriceChangeIcon(0)}
                         </div>
-                        <p className={`text-lg font-bold font-mono ${getPriceChangeColor(currentStats.market_price_usd)}`}>
+                        <p className={`text-lg font-bold font-mono ${getPriceChangeColor(0)}`}>
                             {formatPrice(currentStats.market_price_usd)}
                         </p>
                         <p className="text-xs text-text-tertiary mt-1">{currentStats.algorithm}</p>

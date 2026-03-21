@@ -47,6 +47,9 @@ export default function MiningPage() {
       const result = await api.post(API_ENDPOINTS.MINING.SUBSCRIBE, { plan_id: selectedPlan.id });
       // Refresh local list to show the pending one
       loadMiningData();
+      // Clear selected plan and close modal after successful subscription
+      setSelectedPlan(null);
+      setIsModalOpen(false);
       return result;
     } catch (err) {
       throw err;
@@ -109,7 +112,10 @@ export default function MiningPage() {
           <SubscribeModal
             plan={selectedPlan}
             isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedPlan(null);
+            }}
             onConfirm={handleSubscribeConfirm}
           />
         )}

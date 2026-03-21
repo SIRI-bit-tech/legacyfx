@@ -20,8 +20,13 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
 });
 
+// Deployment-aware URL configuration
+const deploymentUrl = process.env.NEXT_PUBLIC_DEPLOYMENT_URL || 
+                      process.env.VERCEL_URL || 
+                      (process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000');
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000'),
+  metadataBase: new URL(deploymentUrl),
   title: 'Legacy FX | Institutional Digital Asset Exchange & Matching Engine',
   description: 'Trade cryptocurrencies with institutional-grade tools on Legacy FX. Experience under 1.2ms latency, deep liquidity, and Swiss-grade custodial security. Access 350+ assets including Bitcoin, Ethereum, and Equity Indices.',
   keywords: 'crypto exchange, digital assets, bitcoin trading, institutional crypto, cryptocurrency matching engine, ethereum, high frequency trading, secure crypto storage, Legacy FX, blockchain finance',
@@ -29,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Legacy FX | Institutional Digital Asset Exchange',
     description: 'The gold standard of digital asset trading. High-performance matching engine and ultra-secure cold storage.',
-    url: 'https://legacyfx.com',
+    url: deploymentUrl,
     siteName: 'Legacy FX',
     images: [
       {
