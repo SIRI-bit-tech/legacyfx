@@ -4,7 +4,6 @@ Maintains order book state and applies incremental updates.
 """
 import logging
 from typing import Dict, List, Optional
-from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +20,8 @@ class OrderBook:
     
     def __init__(self, symbol: str):
         self.symbol = symbol
-        self.bids: OrderedDict[float, float] = OrderedDict()  # price -> quantity
-        self.asks: OrderedDict[float, float] = OrderedDict()  # price -> quantity
+        self.bids: Dict[float, float] = {}  # price -> quantity
+        self.asks: Dict[float, float] = {}  # price -> quantity
         self.sequence = 0
         
     def apply_snapshot(self, bids: List[List[str]], asks: List[List[str]], sequence: int):
@@ -78,100 +77,79 @@ class OrderBook:
             if qty > 0:
                 self.asks[price] = qty
                 
-        # Sort order books
-        self.bids = OrderedDict(sorted(self.bids.items(), reverse=True))
-        self.asks = OrderedDict(sorted(self.asks.items()))
+        # Sort and store
+        self.bids = {k: v for k, v in sorted(self.bids.items(), key=lambda x: x[0], reverse=True)}
+        self.asks = {k: v for k, v in sorted(self.asks.items(), key=lambda x: x[0])}
         
         self.sequence = sequence
         
         logger.info(f"Applied snapshot for {self.symbol}: {len(self.bids)} bids, {len(self.asks)} asks")
         
-    def apply_update(self, changes: Dict):
+    def apply_update(self, changes: Dict, sequence_start: int, sequence_end: int) -> bool:
         """
-        Apply incremental order book update.
+        Apply incremental order book update with sequence validation.
         
         Args:
             changes: Dict with 'bids' and 'asks' arrays of [price, quantity] pairs
+            sequence_start: Starting sequence number of this update
+            sequence_end: Ending sequence number of this update
+            
+        Returns:
+            bool: True if update was applied successfully, False if sequence gap detected
         """
+        # KuCoin L2 documentation: sequenceStart must be <= lastKnownSequence + 1
+        # and sequenceEnd must be > lastKnownSequence
+        if sequence_start > self.sequence + 1:
+            logger.warning(
+                f"Sequence gap detected for {self.symbol}: "
+                f"Current sequence {self.sequence}, update starts at {sequence_start}"
+            )
+            return False
+            
+        if sequence_end <= self.sequence:
+            # Old update, ignore
+            return True
+
         # Update bids
         if 'bids' in changes:
             for bid_data in changes['bids']:
-                # Handle different data formats: [price, quantity] or {price, quantity}
                 if isinstance(bid_data, list):
                     if len(bid_data) >= 2:
-                        price = float(bid_data[0])
-                        qty = float(bid_data[1])
-                    else:
-                        logger.warning(f"Invalid bid data format: {bid_data}")
-                        continue
+                        price, qty = float(bid_data[0]), float(bid_data[1])
+                    else: continue
                 elif isinstance(bid_data, dict):
-                    price = float(bid_data.get('price', 0))
-                    qty = float(bid_data.get('quantity', 0))
-                else:
-                    logger.warning(f"Unknown bid data format: {type(bid_data)} - {bid_data}")
-                    continue
+                    price, qty = float(bid_data.get('price', 0)), float(bid_data.get('quantity', 0))
+                else: continue
                 
-                if qty == 0:
-                    # Remove price level
-                    self.bids.pop(price, None)
-                else:
-                    # Update price level
-                    self.bids[price] = qty
-                    
-            # Re-sort bids
-            self.bids = OrderedDict(sorted(self.bids.items(), reverse=True))
+                if qty == 0: self.bids.pop(price, None)
+                else: self.bids[price] = qty
+            
+            self.bids = {k: v for k, v in sorted(self.bids.items(), key=lambda x: x[0], reverse=True)}
             
         # Update asks
         if 'asks' in changes:
             for ask_data in changes['asks']:
-                # Handle different data formats: [price, quantity] or {price, quantity}
                 if isinstance(ask_data, list):
                     if len(ask_data) >= 2:
-                        price = float(ask_data[0])
-                        qty = float(ask_data[1])
-                    else:
-                        logger.warning(f"Invalid ask data format: {ask_data}")
-                        continue
+                        price, qty = float(ask_data[0]), float(ask_data[1])
+                    else: continue
                 elif isinstance(ask_data, dict):
-                    price = float(ask_data.get('price', 0))
-                    qty = float(ask_data.get('quantity', 0))
-                else:
-                    logger.warning(f"Unknown ask data format: {type(ask_data)} - {ask_data}")
-                    continue
+                    price, qty = float(ask_data.get('price', 0)), float(ask_data.get('quantity', 0))
+                else: continue
                 
-                if qty == 0:
-                    # Remove price level
-                    self.asks.pop(price, None)
-                else:
-                    # Update price level
-                    self.asks[price] = qty
+                if qty == 0: self.asks.pop(price, None)
+                else: self.asks[price] = qty
                     
-            # Re-sort asks
-            self.asks = OrderedDict(sorted(self.asks.items()))
+            self.asks = {k: v for k, v in sorted(self.asks.items(), key=lambda x: x[0])}
+            
+        self.sequence = sequence_end
+        return True
             
     def get_top_levels(self, depth: int = 10) -> Dict:
-        """
-        Get top N levels of bids and asks.
-        
-        Args:
-            depth: Number of levels to return
-            
-        Returns:
-            Dict with 'bids' and 'asks' arrays
-        """
-        bids_list = [
-            {"price": price, "quantity": qty}
-            for price, qty in list(self.bids.items())[:depth]
-        ]
-        
-        asks_list = [
-            {"price": price, "quantity": qty}
-            for price, qty in list(self.asks.items())[:depth]
-        ]
-        
+        """Get top N levels of bids and asks."""
         return {
-            "bids": bids_list,
-            "asks": asks_list,
+            "bids": [{"price": p, "quantity": q} for p, q in list(self.bids.items())[:depth]],
+            "asks": [{"price": p, "quantity": q} for p, q in list(self.asks.items())[:depth]],
             "sequence": self.sequence
         }
 
@@ -190,9 +168,8 @@ class OrderBookManager:
         
     def remove(self, symbol: str):
         """Remove order book for symbol."""
-        if symbol in self.order_books:
-            del self.order_books[symbol]
-            logger.info(f"Removed order book for {symbol}")
+        self.order_books.pop(symbol, None)
+        logger.info(f"Removed order book for {symbol}")
 
 
 # Global instance

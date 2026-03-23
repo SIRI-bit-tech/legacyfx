@@ -47,14 +47,15 @@ def to_twelve_data(symbol: str) -> str:
     for quote in quotes:
         if clean.endswith(quote):
             base = clean[:-len(quote)]
-            # Remove T suffix from quote for Twelve Data
-            quote_clean = quote.replace('T', '')
+            # Remove trailing T suffix from quote for Twelve Data (e.g., USDT -> USD)
+            # Use rstrip('T') instead of replace('T', '') to avoid corrupting BTC -> BC
+            quote_clean = quote.rstrip('T')
             return f"{base}/{quote_clean}"
     
     # Default: assume last 4 chars are quote
     base = clean[:-4]
-    quote = clean[-4:].replace('T', '')
-    return f"{base}/{quote}"
+    quote_clean = clean[-4:].rstrip('T')
+    return f"{base}/{quote_clean}"
 
 
 def to_tradingview(symbol: str, exchange: str = 'BINANCE') -> str:
