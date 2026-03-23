@@ -7,6 +7,7 @@ import logging
 import json
 import httpx
 import websockets
+import uuid
 from typing import Dict, Set, Optional
 from datetime import datetime
 from ably import AblyRest
@@ -187,11 +188,28 @@ class KuCoinOrderBookService:
     async def _connect_and_stream(self, symbol: str, ws_details: Dict):
         """Connect to KuCoin WebSocket and stream order book updates."""
         token = ws_details.get("token")
-        endpoint = ws_details["instanceServers"][0]["endpoint"]
+        server = ws_details["instanceServers"][0]
+        endpoint = server["endpoint"]
+        ping_interval_ms = int(server.get("pingInterval", 10000))
+        ping_timeout_ms = int(server.get("pingTimeout", 20000))
         ws_url = f"{endpoint}?token={token}"
+
+        async def heartbeat_loop(websocket, interval_seconds: float):
+            while True:
+                ping_msg = {
+                    "id": str(uuid.uuid4()),
+                    "type": "ping",
+                }
+                await websocket.send(json.dumps(ping_msg))
+                await asyncio.sleep(interval_seconds)
         
         try:
             async with websockets.connect(ws_url) as websocket:
+                heartbeat_interval_seconds = max(1.0, (ping_interval_ms / 1000.0) * 0.9)
+                pong_timeout_seconds = max(1.0, ping_timeout_ms / 1000.0)
+                last_pong_monotonic = asyncio.get_running_loop().time()
+                heartbeat_task = asyncio.create_task(heartbeat_loop(websocket, heartbeat_interval_seconds))
+
                 subscribe_msg = {
                     "id": f"{symbol}-orderbook",
                     "type": "subscribe",
@@ -199,17 +217,32 @@ class KuCoinOrderBookService:
                     "response": True
                 }
                 await websocket.send(json.dumps(subscribe_msg))
-                
-                async for message in websocket:
-                    if symbol not in self.active_symbols:
-                        break
-                        
-                    data = json.loads(message)
-                    if data.get("type") == "message":
-                        # _process_update returns False on sequence gap to trigger resync
-                        if not await self._process_update(symbol, data):
-                            logger.warning(f"Sequence gap for {symbol}, breaking stream for resync")
-                            return
+
+                try:
+                    while symbol in self.active_symbols:
+                        remaining = pong_timeout_seconds - (asyncio.get_running_loop().time() - last_pong_monotonic)
+                        if remaining <= 0:
+                            raise ConnectionError(f"No KuCoin pong for {symbol} within {pong_timeout_seconds:.1f}s")
+
+                        message = await asyncio.wait_for(websocket.recv(), timeout=remaining)
+                        data = json.loads(message)
+
+                        msg_type = data.get("type")
+                        if msg_type == "pong":
+                            last_pong_monotonic = asyncio.get_running_loop().time()
+                            continue
+
+                        if msg_type == "message":
+                            # _process_update returns False on sequence gap to trigger resync
+                            if not await self._process_update(symbol, data):
+                                logger.warning(f"Sequence gap for {symbol}, breaking stream for resync")
+                                return
+                finally:
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
         except Exception as e:
             logger.error(f"WebSocket error for {symbol}: {e}")
 

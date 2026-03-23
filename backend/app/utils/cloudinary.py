@@ -4,7 +4,7 @@ Cloudinary file storage integration
 import cloudinary
 import cloudinary.uploader
 import logging
-from config import settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 

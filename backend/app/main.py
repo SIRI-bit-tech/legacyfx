@@ -18,6 +18,7 @@ from app.models.trading import TradingPair, Order, UserAsset, PriceAlert, Execut
 from app.models.trade import Trade
 from app.models.staking import StakingProduct, StakingPosition
 from app.models.finance import Deposit, Withdrawal, Transaction, ColdStorageVault, SubscriptionPlan, UserSubscription
+from app.models.deposit_addresses import DepositAddress
 from app.models.investment import (
     InvestmentProduct, InvestmentPosition, 
     CopyTrader, CopySession
@@ -35,9 +36,9 @@ from app.models.settings import SystemSettings
 from app.models.mining_stats import MiningStats
 
 from app.routes import (
-    auth, users, trading, markets, deposits, 
-    withdrawals, investments, mining, staking, 
-    signals, subscriptions, admin, copy_trading, ably
+    auth, users, trading, markets, deposits, funds,
+    withdrawals, investments, mining, staking,
+    signals, subscriptions, admin, copy_trading, ably, transactions
 )
 
 settings = get_settings()
@@ -126,6 +127,8 @@ app.include_router(users.router)
 app.include_router(trading.router)
 app.include_router(markets.router)
 app.include_router(deposits.router)
+app.include_router(funds.router)
+app.include_router(transactions.router)
 app.include_router(withdrawals.router)
 app.include_router(investments.router)
 app.include_router(mining.router)

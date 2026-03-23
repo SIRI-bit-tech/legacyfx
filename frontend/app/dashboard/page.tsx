@@ -5,15 +5,20 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 import { DashboardLayout } from '../dashboard-layout';
+import { usePortfolioAssets } from '@/hooks/usePortfolioAssets';
+import { usePortfolioSummary } from '@/hooks/usePortfolioSummary';
 
 export default function DashboardPage() {
   const [portfolio, setPortfolio] = useState<any>(null);
-  const [positions, setPositions] = useState<any[]>([]);
   const [prices, setPrices] = useState<any[]>([]);
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalStats, setGlobalStats] = useState<any>(null);
   const [networkStatusExpanded, setNetworkStatusExpanded] = useState(false);
+
+  const summary = usePortfolioSummary();
+  const { assets, loading: assetsLoading } = usePortfolioAssets();
+  const activeAssetsCount = assetsLoading ? '--' : assets.filter((a) => a.total > 0).length;
 
   useEffect(() => {
     loadDashboardData();
@@ -21,15 +26,13 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [portfolioRes, positionsRes, pricesRes, tradesRes, statsRes] = await Promise.all([
+      const [portfolioRes, pricesRes, tradesRes, statsRes] = await Promise.all([
         api.get(API_ENDPOINTS.TRADES.PORTFOLIO).catch(() => null),
-        api.get(API_ENDPOINTS.STAKING.POSITIONS).catch(() => []),
         api.get(API_ENDPOINTS.MARKETS.PRICES).catch(() => []),
         api.get(`${API_ENDPOINTS.TRADES.HISTORY}?page=1&limit=5`).catch(() => []),
         api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null)
       ]);
       setPortfolio(portfolioRes);
-      setPositions(positionsRes || []);
       setPrices(pricesRes || []);
       setTrades(tradesRes || []);
       setGlobalStats(statsRes);
@@ -114,10 +117,12 @@ export default function DashboardPage() {
               <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Net Worth</p>
               <i className="pi pi-wallet text-color-primary"></i>
             </div>
-            <p className="font-mono text-3xl font-bold text-text-primary tracking-tight">${(portfolio?.total_value || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-            <div className={`flex items-center gap-1 font-mono text-xs mt-3 font-bold ${portfolio?.total_pnl >= 0 ? 'text-color-success' : 'text-color-danger'}`}>
-              <i className={`pi ${portfolio?.total_pnl >= 0 ? 'pi-arrow-up-right' : 'pi-arrow-down-right'}`}></i>
-              {portfolio?.total_pnl >= 0 ? '+' : ''}{(portfolio?.total_pnl || 0).toFixed(2)}%
+            <p className="font-mono text-3xl font-bold text-text-primary tracking-tight">
+              {summary.loading ? '--' : `$${summary.netWorth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </p>
+            <div className={`flex items-center gap-1 font-mono text-xs mt-3 font-bold ${summary.change24h >= 0 ? 'text-color-success' : 'text-color-danger'}`}>
+              <i className={`pi ${summary.change24h >= 0 ? 'pi-arrow-up-right' : 'pi-arrow-down-right'}`}></i>
+              {summary.loading ? '--' : `${summary.change24h >= 0 ? '+' : ''}${summary.change24h.toFixed(2)}%`}
             </div>
           </div>
           
@@ -126,17 +131,19 @@ export default function DashboardPage() {
               <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Active Assets</p>
               <i className="pi pi-chart-bar text-color-info"></i>
             </div>
-            <p className="font-mono text-3xl font-bold text-text-primary tracking-tight">{portfolio?.holdings?.length || 0}</p>
+            <p className="font-mono text-3xl font-bold text-text-primary tracking-tight">{activeAssetsCount}</p>
             <p className="text-[10px] text-text-tertiary font-bold mt-3">Spanning 5 Networks</p>
           </div>
 
           <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
             <div className="flex justify-between items-start mb-4">
-              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Staking Rewards</p>
-              <i className="pi pi-database text-color-success"></i>
+              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Trading Balance</p>
+              <i className="pi pi-wallet text-color-success"></i>
             </div>
-            <p className="font-mono text-3xl font-bold text-color-success tracking-tight">{positions.length}</p>
-            <p className="text-[10px] text-text-tertiary font-bold mt-3">Avg. 12.4% APY</p>
+            <p className="font-mono text-3xl font-bold text-color-success tracking-tight">
+              {summary.loading ? '--' : `$${summary.available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </p>
+            <p className="text-[10px] text-text-tertiary font-bold mt-3">Available to trade</p>
           </div>
 
           <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">

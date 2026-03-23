@@ -16,6 +16,7 @@ from app.models.account import Account
 from app.models.asset import Asset
 from app.models.document import Document
 from app.models.finance import Deposit, Withdrawal, Transaction, ColdStorageVault, SubscriptionPlan, UserSubscription
+from app.models.deposit_addresses import DepositAddress
 from app.models.investment import InvestmentProduct, InvestmentPosition, CopyTrader, CopySession
 from app.models.real_estate import RealEstateProperty, RealEstateInvestment
 from app.models.mining import MiningPlan, MiningSubscription

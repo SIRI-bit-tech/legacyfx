@@ -2,7 +2,7 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from config import settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +55,20 @@ class EmailService:
             return False
     
     @staticmethod
-    async def send_withdrawal_confirmation(email: str, amount: str, currency: str) -> bool:
+    async def send_withdrawal_confirmation(email: str, amount: str, currency: str, token: str) -> bool:
         """Send withdrawal confirmation email"""
         try:
-            subject = f"Withdrawal Confirmation - {amount} {currency}"
+            subject = f"Confirm Your Withdrawal - {amount} {currency}"
+            confirm_url = f"{settings.FRONTEND_URL}/api/v1/withdrawals/confirm?token={token}"
             html_body = f"""
             <html>
                 <body>
-                    <h2>Withdrawal Confirmed</h2>
-                    <p>Your withdrawal of {amount} {currency} has been processed.</p>
+                    <h2>Confirm Your Withdrawal</h2>
+                    <p>To confirm your withdrawal of {amount} {currency}, click the link below.</p>
+                    <p>
+                        If you need to confirm this withdrawal, use this link:
+                        <a href="{confirm_url}">Confirm withdrawal</a>
+                    </p>
                 </body>
             </html>
             """

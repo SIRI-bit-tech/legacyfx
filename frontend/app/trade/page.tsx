@@ -9,6 +9,7 @@ import { OrderHistory } from '@/components/trade/OrderHistory';
 import { TradeHistory } from '@/components/trade/TradeHistory';
 import { FundsTab } from '@/components/trade/FundsTab';
 import { useTopBarStats } from '@/hooks/useTopBarStats';
+import { useSearchParams } from 'next/navigation';
 
 declare global {
   interface Window {
@@ -34,8 +35,23 @@ const getTradingViewSymbol = (rawSymbol: string): string => {
   return `NASDAQ:${s}`;
 };
 
+const normalizeAppSymbol = (raw: string): string => {
+  // Accept formats like:
+  // - "BINANCE:BTCUSDT" -> "BTCUSDT"
+  // - "BTC/USDT" -> "BTCUSDT"
+  return (raw || '')
+    .replace(/^.*:/, '')
+    .replace(/[-/]/g, '')
+    .toUpperCase()
+    .trim();
+};
+
 export default function TradePage() {
-  const [symbol, setSymbol] = useState('BTCUSDT');
+  const searchParams = useSearchParams();
+  const querySymbol = searchParams.get('symbol');
+
+  const initialSymbol = normalizeAppSymbol(querySymbol || '') || 'BTCUSDT';
+  const [symbol, setSymbol] = useState<string>(initialSymbol);
   const [side, setSide] = useState('BUY');
   const [orderType, setOrderType] = useState('MARKET');
   const [amount, setAmount] = useState('');
@@ -45,6 +61,13 @@ export default function TradePage() {
   const tradingViewContainerRef = useRef<HTMLDivElement | null>(null);
 
   const stats = useTopBarStats(symbol, 'crypto');
+
+  // Pre-select the asset when coming from Assets table actions.
+  useEffect(() => {
+    const next = normalizeAppSymbol(querySymbol || '');
+    if (!next) return;
+    setSymbol((prev) => (prev === next ? prev : next));
+  }, [querySymbol]);
 
   // STEP 2 — load TradingView script once, resolve when ready
   const ensureTvScript = useCallback((): Promise<void> => {

@@ -3,7 +3,7 @@ Better Auth token validation
 """
 import jwt
 import logging
-from config import settings
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -9,6 +9,7 @@ import logging
 from app.database import get_db
 from app.models.user import User, UserTier
 from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus, Transaction, TransactionType
+from app.models.deposit_addresses import DepositAddress
 from app.models.mining import MiningPlan, MiningSubscription, MiningStatus
 from app.models.settings import SystemSettings
 from app.utils.auth import get_current_user
@@ -232,3 +233,127 @@ async def update_mining_settings(
             
     await db.commit()
     return {"message": "Mining settings updated successfully"}
+
+
+class DepositAddressCreateRequest(BaseModel):
+    asset: str
+    network: str
+    address: str
+    qrCodeUrl: str
+    minDeposit: float = 0.0
+    fee: float = 0.0
+
+
+class DepositAddressUpdateRequest(BaseModel):
+    asset: Optional[str] = None
+    network: Optional[str] = None
+    address: Optional[str] = None
+    qrCodeUrl: Optional[str] = None
+    minDeposit: Optional[float] = None
+    fee: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+@router.post("/deposit-addresses")
+async def create_deposit_address(
+    request: DepositAddressCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Create a new admin-configured deposit address."""
+    new_id = str(uuid.uuid4())
+    deposit_address = DepositAddress(
+        id=new_id,
+        asset=request.asset.upper().strip(),
+        network=request.network.strip(),
+        address=request.address.strip(),
+        qr_code_url=request.qrCodeUrl.strip(),
+        min_deposit=float(request.minDeposit or 0.0),
+        fee=float(request.fee or 0.0),
+        is_active=True,
+    )
+
+    db.add(deposit_address)
+    await db.commit()
+
+    return {
+        "id": deposit_address.id,
+        "asset": deposit_address.asset,
+        "network": deposit_address.network,
+        "address": deposit_address.address,
+        "qrCodeUrl": deposit_address.qr_code_url,
+        "minDeposit": deposit_address.min_deposit,
+        "fee": deposit_address.fee,
+        "is_active": deposit_address.is_active,
+    }
+
+
+@router.put("/deposit-addresses/{deposit_address_id}")
+async def update_deposit_address(
+    deposit_address_id: str,
+    request: DepositAddressUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """Update an admin-configured deposit address."""
+    stmt = select(DepositAddress).where(DepositAddress.id == deposit_address_id)
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Deposit address not found")
+
+    if request.asset is not None:
+        row.asset = request.asset.upper().strip()
+    if request.network is not None:
+        row.network = request.network.strip()
+    if request.address is not None:
+        row.address = request.address.strip()
+    if request.qrCodeUrl is not None:
+        row.qr_code_url = request.qrCodeUrl.strip()
+    if request.minDeposit is not None:
+        row.min_deposit = float(request.minDeposit)
+    if request.fee is not None:
+        row.fee = float(request.fee)
+    if request.is_active is not None:
+        row.is_active = bool(request.is_active)
+
+    await db.commit()
+
+    return {
+        "id": row.id,
+        "asset": row.asset,
+        "network": row.network,
+        "address": row.address,
+        "qrCodeUrl": row.qr_code_url,
+        "minDeposit": row.min_deposit,
+        "fee": row.fee,
+        "is_active": row.is_active,
+    }
+
+
+@router.get("/deposit-addresses")
+async def list_deposit_addresses(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    """List all configured deposit addresses."""
+    stmt = select(DepositAddress).order_by(DepositAddress.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    return [
+        {
+            "id": r.id,
+            "asset": r.asset,
+            "network": r.network,
+            "address": r.address,
+            "qrCodeUrl": r.qr_code_url,
+            "minDeposit": r.min_deposit,
+            "fee": r.fee,
+            "is_active": r.is_active,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at,
+        }
+        for r in rows
+    ]
