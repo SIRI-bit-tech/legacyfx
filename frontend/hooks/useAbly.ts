@@ -1,70 +1,46 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import * as Ably from 'ably';
-import { API_BASE_URL } from '@/constants';
+import { useAblyClient } from './useAblyClient';
+import { useAuth } from './useAuth';
 
 /**
  * useAbly hook for real-time messaging
- * Refactored for robust connection management and dynamic subscriptions
+ * Refactored to use the central Singleton Ably Client and dynamic subscriptions
  */
 export function useAbly(channelName: string, onMessage?: (message: any) => void) {
-  const [isConnected, setIsConnected] = useState(false);
+  const { channel, isConnected } = useAblyClient();
   const [error, setError] = useState<string | null>(null);
-  const ablyRef = useRef<Ably.Realtime | null>(null);
-
-  // Connection Management Effect
-  useEffect(() => {
-    const ably = new Ably.Realtime({
-      authUrl: `${API_BASE_URL}/ably/token`,
-      authHeaders: {
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`
-      },
-      closeOnUnload: true
-    });
-
-    ablyRef.current = ably;
-
-    const handleConnected = () => {
-      setIsConnected(true);
-      setError(null);
-    };
-
-    const handleDisconnected = () => setIsConnected(false);
-    const handleFailed = (err: any) => {
-      setError(err.message || 'Connection failed');
-      setIsConnected(false);
-    };
-
-    ably.connection.on('connected', handleConnected);
-    ably.connection.on('disconnected', handleDisconnected);
-    ably.connection.on('failed', handleFailed);
-
-    return () => {
-      ably.connection.off('connected', handleConnected);
-      ably.connection.off('disconnected', handleDisconnected);
-      ably.connection.off('failed', handleFailed);
-      ably.close();
-      ablyRef.current = null;
-    };
-  }, []); // Run once for the lifecycle of the hook/page
+  const { isAuthenticated } = useAuth();
+  const isSubscribedRef = useRef<boolean>(false);
 
   // Subscription Management Effect
   useEffect(() => {
-    const ably = ablyRef.current;
-    if (!ably || !onMessage) return;
+    if (!channel || !isConnected || !isAuthenticated) {
+        console.log('useAbly: Waiting for connection or auth to subscribe to:', channelName);
+        return;
+    }
 
-    const channel = ably.channels.get(channelName);
+    const ablyChannel = channel(channelName);
+    if (!ablyChannel) {
+        console.warn('useAbly: Failed to get channel instance for:', channelName);
+        return;
+    }
+
     const messageHandler = (message: any) => {
       if (onMessage) onMessage(message);
     };
 
-    channel.subscribe(messageHandler);
+    console.log('useAbly: Subscribing to channel:', channelName);
+    ablyChannel.subscribe(messageHandler);
+    isSubscribedRef.current = true;
 
     return () => {
-      channel.unsubscribe(messageHandler);
+      console.log('useAbly: Unsubscribing from channel:', channelName);
+      ablyChannel.unsubscribe(messageHandler);
+      isSubscribedRef.current = false;
     };
-  }, [channelName, onMessage, isConnected]); // Re-subscribe if channel, handler, or connection changes
+  }, [channelName, onMessage, isConnected, isAuthenticated]); // Re-subscribe if channel, handler, or connection changes
 
-  return { isConnected, error };
+  return { isConnected, error, isSubscribed: isSubscribedRef.current };
 }

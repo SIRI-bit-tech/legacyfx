@@ -27,7 +27,7 @@ def upgrade() -> None:
         DELETE FROM mining_stats 
         WHERE id NOT IN (
             SELECT id FROM (
-                SELECT id, ROW_NUMBER() OVER (PARTITION BY coin_symbol ORDER BY updated_at DESC) as rn
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY coin_symbol ORDER BY updated_at DESC NULLS LAST, id DESC) as rn
                 FROM mining_stats
             ) as t
             WHERE rn = 1

@@ -21,6 +21,8 @@ class MasterTraderResponse(BaseModel):
     aum: float  # Assets under management
     monthly_return: float  # Monthly return %
     trading_pair: str  # Primary trading pair
+    pnlRatios: List[float] = Field(default_factory=list)  # Weekly PnL values for chart
+    traderInsts: List[str] = Field(default_factory=list)  # All trading pairs
 
 
 class StartCopyTradingRequest(BaseModel):

@@ -9,16 +9,27 @@ interface Props {
 }
 
 export const TraderCard = ({ trader, onViewAnalytics, onStartCopy }: Props) => {
-  const getRankColor = (level: string) => {
-    switch (level) {
+  const getRankLevel = (t: any) => {
+    const winRate = parseFloat(t.win_rate || 0);
+    const followers = parseInt(t.followers || 0);
+    if (winRate > 90 && followers > 1000) return 'Diamond';
+    if (winRate > 80 || followers > 500) return 'Gold';
+    if (winRate > 60) return 'Silver';
+    return 'Elite';
+  };
+
+  const level = trader.level || getRankLevel(trader);
+
+  const getRankColor = (l: string) => {
+    switch (l) {
       case 'Diamond': return 'text-[#00D1FF] border-[#00D1FF]/30 bg-[#00D1FF]/10';
       case 'Gold': return 'text-[#F3BA2F] border-[#F3BA2F]/30 bg-[#F3BA2F]/10';
       case 'Silver': return 'text-[#C0C0C0] border-[#C0C0C0]/30 bg-[#C0C0C0]/10';
-      default: return 'text-[#848E9C] border-white/10 bg-white/5';
+      default: return 'text-[#FCD535] border-[#FCD535]/30 bg-[#FCD535]/10';
     }
   };
 
-  const roiValue = parseFloat(trader.roi || 0) * 100;
+  const roiValue = parseFloat(trader.roi || 0);
 
   return (
     <div className="group relative bg-[#181A20] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-[#FCD535]/40 transition-all duration-500 shadow-2xl flex flex-col scale-100 hover:scale-[1.02]">
@@ -28,8 +39,8 @@ export const TraderCard = ({ trader, onViewAnalytics, onStartCopy }: Props) => {
             <TraderAvatar trader={trader} />
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-green-400 border-4 border-[#181A20]"></div>
           </div>
-          <div className={`px-4 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest ${getRankColor(trader.level)}`}>
-            {trader.level || 'Elite'}
+          <div className={`px-4 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest ${getRankColor(level)}`}>
+            {level}
           </div>
         </div>
 

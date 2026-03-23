@@ -1,7 +1,7 @@
 'use client';
 
 import { DashboardLayout } from '../dashboard-layout';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 
@@ -14,24 +14,33 @@ import { StartCopyTradeModal } from '@/components/copy-trading/StartCopyTradeMod
 export default function CopyTradingPage() {
   const [traders, setTraders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filter, setFilter] = useState('All');
   const [selectedTrader, setSelectedTrader] = useState<any | null>(null);
   const [traderToCopy, setTraderToCopy] = useState<any | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const copySuccessTimer = useRef<any>(null);
 
   useEffect(() => {
     loadTraders();
+    return () => {
+      if (copySuccessTimer.current) {
+        clearTimeout(copySuccessTimer.current);
+      }
+    };
   }, []);
 
   const loadTraders = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get(`${(API_ENDPOINTS as any).COPY_TRADING.MASTER_TRADERS}?limit=50`);
       const tradersList = Array.isArray(res) ? res : res?.data || [];
       setTraders(tradersList);
     } catch (err) {
       console.error('Failed to load traders:', err);
+      setError('Connection engine failed to fetch master trader data.');
       setTraders([]);
     } finally {
       setLoading(false);
@@ -98,13 +107,28 @@ export default function CopyTradingPage() {
           onSuccess={() => {
             setTraderToCopy(null);
             setCopySuccess(true);
-            setTimeout(() => setCopySuccess(false), 5000);
+            
+            // Clear any existing timer to prevent overlaps
+            if (copySuccessTimer.current) {
+              clearTimeout(copySuccessTimer.current);
+            }
+            
+            // Set a new timer to dismiss the success state
+            copySuccessTimer.current = setTimeout(() => {
+              setCopySuccess(false);
+              copySuccessTimer.current = null;
+            }, 5000);
           }} 
         />
       )}
 
       {copySuccess && (
-        <div className="fixed top-24 right-10 z-[200] p-6 bg-green-400 rounded-2xl shadow-2xl animate-in slide-in-from-right-10 duration-500 flex items-center gap-4 text-[#111111]">
+        <div 
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="fixed top-24 right-10 z-[200] p-6 bg-green-400 rounded-2xl shadow-2xl animate-in slide-in-from-right-10 duration-500 flex items-center gap-4 text-[#111111]"
+        >
           <i className="pi pi-check-circle text-2xl"></i>
           <div>
             <div className="font-black uppercase tracking-widest text-xs">Mirror Activated</div>
@@ -163,11 +187,36 @@ export default function CopyTradingPage() {
           </div>
         </div>
 
-        {filteredTraders.length === 0 ? (
-          <div className="py-20 text-center bg-[#0B0E11] rounded-[3rem] border border-white/5">
-            <i className="pi pi-search text-6xl text-[#1E2329] mb-6 block"></i>
-            <h3 className="text-lg font-bold text-[#848E9C]">No master traders match your search.</h3>
-            <p className="text-[#848E9C] text-sm mt-2 opacity-50 uppercase font-black tracking-tighter">Try adjusting your filters or search query.</p>
+        {error ? (
+          <div className="py-24 text-center bg-red-400/5 rounded-[3.5rem] border border-red-400/10 shadow-2xl animate-in slide-in-from-right-10 overflow-hidden relative">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-400/50 to-transparent"></div>
+            <i className="pi pi-exclamation-triangle text-7xl text-red-500 mb-8 block drop-shadow-[0_0_15px_rgba(239,68,68,0.4)]"></i>
+            <h3 className="text-xl font-black text-red-400 uppercase tracking-widest mb-4">Connection Engine Failure</h3>
+            <p className="text-[#848E9C] text-sm max-w-md mx-auto mb-10 font-black uppercase tracking-tighter opacity-70">
+              The real-time data terminal is experiencing a synchronization error: {error}
+            </p>
+            <button 
+              onClick={loadTraders}
+              className="bg-red-500 hover:bg-red-400 text-bg-primary px-12 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all transform hover:scale-105 active:scale-95 shadow-xl shadow-red-500/20"
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : traders.length === 0 ? (
+          <div className="py-24 text-center bg-[#181A20]/40 rounded-[3.5rem] border border-white/5 shadow-2xl">
+            <i className="pi pi-users text-7xl text-[#1E2329] mb-8 block"></i>
+            <h2 className="text-xl font-black text-[#FCD535] uppercase tracking-widest mb-4">Scanning for Top Performers</h2>
+            <p className="text-[#848E9C] text-sm max-w-md mx-auto font-black uppercase tracking-tighter opacity-60">
+              The Elite Copy Trading network is currently scouting for new Master Traders to feature on the terminal.
+            </p>
+          </div>
+        ) : filteredTraders.length === 0 ? (
+          <div className="py-24 text-center bg-[#0B0E11]/40 rounded-[3.5rem] border border-white/5 shadow-2xl">
+            <i className="pi pi-search-minus text-7xl text-[#1E2329] mb-8 block"></i>
+            <h3 className="text-xl font-black text-[#848E9C] uppercase tracking-widest mb-4">No Mirror Signal Matches</h3>
+            <p className="text-[#848E9C] text-sm max-w-md mx-auto font-black uppercase tracking-tighter opacity-60">
+              Your current search query or filter combination yielded no active signal matches on the terminal.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">

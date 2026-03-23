@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, and_, func
 from typing import List, Optional
 import uuid
 from datetime import datetime
@@ -113,6 +113,22 @@ async def create_order(
     db.add(txn)
     await db.commit()
     
+    # 6. Publish order update to Ably
+    await publish_order_update(current_user.id, {
+        "id": order_id,
+        "symbol": request.symbol,
+        "type": new_order.type.value,
+        "side": new_order.side.value,
+        "price": current_market_price,
+        "quantity": request.quantity,
+        "filled": request.quantity,
+        "status": new_order.status.value,
+        "created_at": new_order.created_at.isoformat()
+    })
+    
+    # 7. Publish balance update to Ably
+    await publish_balance_update(current_user.id)
+    
     return TradeResponse(
         id=order_id,
         symbol=request.symbol,
@@ -122,6 +138,40 @@ async def create_order(
         status="FILLED",
         created_at=datetime.utcnow()
     )
+
+
+async def publish_order_update(user_id: str, order_data: dict):
+    """Publish order update to Ably channel."""
+    try:
+        from app.config import get_settings
+        from ably import AblyRest
+        
+        settings = get_settings()
+        api_key = settings.ABLY_API_KEY or settings.ABLY_KEY
+        
+        if api_key:
+            ably_client = AblyRest(api_key)
+            channel = ably_client.channels.get(f"orders:{user_id}")
+            channel.publish("update", order_data)
+    except Exception as e:
+        logger.error(f"Error publishing order update: {e}")
+
+
+async def publish_balance_update(user_id: str):
+    """Publish balance update to Ably channel."""
+    try:
+        from app.config import get_settings
+        from ably import AblyRest
+        
+        settings = get_settings()
+        api_key = settings.ABLY_API_KEY or settings.ABLY_KEY
+        
+        if api_key:
+            ably_client = AblyRest(api_key)
+            channel = ably_client.channels.get(f"funds:{user_id}")
+            channel.publish("update", {"timestamp": datetime.utcnow().isoformat()})
+    except Exception as e:
+        logger.error(f"Error publishing balance update: {e}")
 
 @router.get("/portfolio", response_model=PortfolioResponse)
 async def get_portfolio(
@@ -180,3 +230,202 @@ async def get_trade_history(
             created_at=o.created_at
         ) for o in orders
     ]
+
+
+@router.get("/orders/open")
+async def get_open_orders(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's open orders."""
+    stmt = select(Order).where(
+        Order.user_id == current_user.id,
+        Order.status.in_([OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED])
+    ).order_by(Order.created_at.desc())
+    
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+    
+    return [
+        {
+            "id": o.id,
+            "symbol": o.symbol,
+            "type": o.type.value,
+            "side": o.side.value,
+            "price": float(o.average_price or 0),
+            "quantity": float(o.quantity),
+            "filled": float(o.executed_quantity or 0),
+            "status": o.status.value,
+            "created_at": o.created_at.isoformat()
+        } for o in orders
+    ]
+
+
+@router.get("/orders/history")
+async def get_order_history(
+    page: int = 1,
+    limit: int = 20,
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's order history with pagination and filters."""
+    # Build query
+    query = select(Order).where(Order.user_id == current_user.id)
+    
+    # Apply status filter
+    if status and status.upper() in ['FILLED', 'CANCELLED']:
+        query = query.where(Order.status == OrderStatus[status.upper()])
+    
+    # Count total
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+    
+    # Apply pagination
+    query = query.order_by(Order.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    
+    return {
+        "orders": [
+            {
+                "id": o.id,
+                "symbol": o.symbol,
+                "type": o.type.value,
+                "side": o.side.value,
+                "price": float(o.average_price or 0),
+                "quantity": float(o.quantity),
+                "status": o.status.value,
+                "created_at": o.created_at.isoformat()
+            } for o in orders
+        ],
+        "page": page,
+        "total_pages": total_pages,
+        "total": total
+    }
+
+
+@router.get("/trades/history")
+async def get_trade_history(
+    page: int = 1,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's executed trades history with pagination."""
+    # Query for filled orders only
+    query = select(Order).where(
+        Order.user_id == current_user.id,
+        Order.status == OrderStatus.FILLED
+    )
+    
+    # Count total
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+    
+    # Apply pagination
+    query = query.order_by(Order.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    
+    result = await db.execute(query)
+    orders = result.scalars().all()
+    
+    return {
+        "trades": [
+            {
+                "id": o.id,
+                "symbol": o.symbol,
+                "side": o.side.value,
+                "price": float(o.average_price or 0),
+                "quantity": float(o.quantity),
+                "total": float(o.quantity * (o.average_price or 0)),
+                "fee": 0.0,  # TODO: Calculate actual fee
+                "created_at": o.created_at.isoformat()
+            } for o in orders
+        ],
+        "page": page,
+        "total_pages": total_pages,
+        "total": total
+    }
+
+
+@router.delete("/orders/{order_id}")
+async def cancel_order(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Cancel an open order."""
+    # Find the order
+    stmt = select(Order).where(
+        Order.id == order_id,
+        Order.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status not in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
+        raise HTTPException(status_code=400, detail="Order cannot be cancelled")
+    
+    # Update order status
+    order.status = OrderStatus.CANCELLED
+    await db.commit()
+    
+    # Publish order update to Ably
+    await publish_order_update(current_user.id, {
+        "id": order.id,
+        "symbol": order.symbol,
+        "type": order.type.value,
+        "side": order.side.value,
+        "price": float(order.average_price or 0),
+        "quantity": float(order.quantity),
+        "filled": float(order.executed_quantity or 0),
+        "status": order.status.value,
+        "created_at": order.created_at.isoformat()
+    })
+    
+    return {"status": "success", "message": "Order cancelled"}
+
+
+@router.get("/funds")
+async def get_funds(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user's asset balances."""
+    # Get all user assets
+    stmt = select(UserAsset).where(UserAsset.user_id == current_user.id)
+    result = await db.execute(stmt)
+    assets = result.scalars().all()
+    
+    balances = []
+    
+    # Add crypto assets
+    for asset in assets:
+        balances.append({
+            "asset": asset.asset_symbol,
+            "total_balance": float(asset.total_balance),
+            "available": float(asset.available_balance),
+            "in_order": float(asset.total_balance - asset.available_balance)
+        })
+    
+    # Add USD balance (from trading_balance)
+    if current_user.trading_balance > 0 or len(balances) == 0:
+        balances.insert(0, {
+            "asset": "USD",
+            "total_balance": float(current_user.trading_balance),
+            "available": float(current_user.trading_balance),
+            "in_order": 0.0
+        })
+    
+    # Sort by total balance descending
+    balances.sort(key=lambda x: x["total_balance"], reverse=True)
+    
+    return balances

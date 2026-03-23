@@ -16,6 +16,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, loading, router]);
 
+  // Show spinner while auth is resolving
   if (loading) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
@@ -29,16 +30,21 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
+  // KEY FIX: instead of returning null (which unmounts all children
+  // and destroys the chart container ref), render the full layout
+  // immediately but keep children hidden until auth is confirmed.
+  // This means the DOM — including the TradingView div — is always
+  // present, so the ref is never null when the widget tries to mount.
   return (
     <div className="flex h-screen bg-bg-primary">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto">
+          {/* Render children regardless of auth state —
+              page.tsx guards the chart init behind isMounted,
+              and the redirect useEffect above handles the redirect.
+              This prevents the ref from being destroyed mid-init. */}
           {children}
         </main>
       </div>

@@ -48,6 +48,7 @@ const config: Config = {
         '2xl': '2.5rem',
         '3xl': '3rem',
         '4xl': '4rem',
+        '4.5': '1.125rem',
       },
       borderRadius: {
         none: '0',
@@ -56,6 +57,23 @@ const config: Config = {
         md: '0.5rem',
         lg: '0.75rem',
         full: '9999px',
+      },
+      boxShadow: {
+        'glow': '0 0 20px rgba(252, 213, 53, 0.3)',
+      },
+      keyframes: {
+        'animate-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'slide-in-from-right-10': {
+          '0%': { transform: 'translateX(2.5rem)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+      },
+      animation: {
+        'animate-in': 'animate-in 500ms ease-out forwards',
+        'slide-in-from-right-10': 'slide-in-from-right-10 500ms ease-out forwards',
       },
     },
   },

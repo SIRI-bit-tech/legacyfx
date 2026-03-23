@@ -16,9 +16,13 @@ from app.models.finance import Transaction, TransactionType
 
 logger = logging.getLogger(__name__)
 
+from sqlalchemy.engine import make_url
 settings = get_settings()
 # APScheduler SQLAlchemyJobStore needs a synchronous driver (psycopg2)
-SQLALCHEMY_SYNC_URL = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").split("?")[0]
+_url = make_url(settings.DATABASE_URL)
+if _url.drivername == "postgresql+asyncpg":
+    _url = _url.set(drivername="postgresql")
+SQLALCHEMY_SYNC_URL = str(_url)
 
 # Initialize Scheduler with persistent job store for multi-worker deployments
 jobstores = {
