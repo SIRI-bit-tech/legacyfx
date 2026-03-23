@@ -113,30 +113,36 @@ class KuCoinOrderBookService:
         Handle WebSocket connection and updates for a symbol.
         
         CRITICAL: Fetches full snapshot first, then applies incremental updates.
+        If a sequence gap is detected or snapshot fails, it restarts the process.
         """
-        try:
-            # Step 1: Fetch full order book snapshot from REST API
-            await self._fetch_snapshot(symbol)
-            
-            # Step 2: Get WebSocket connection details
-            ws_details = await self._get_ws_details()
-            if not ws_details:
-                logger.error(f"Failed to get WebSocket details for {symbol}")
-                return
+        while symbol in self.active_symbols and self.running:
+            try:
+                # Step 1: Fetch full order book snapshot
+                success = await self._fetch_snapshot(symbol)
+                if not success:
+                    logger.error(f"Snapshot fetch failed for {symbol}, retrying in 5s...")
+                    await asyncio.sleep(5)
+                    continue
                 
-            # Step 3: Connect to WebSocket and subscribe
-            await self._connect_and_stream(symbol, ws_details)
-            
-        except asyncio.CancelledError:
-            logger.info(f"Order book task cancelled for {symbol}")
-        except Exception as e:
-            logger.error(f"Error handling order book for {symbol}: {e}")
-            
-    async def _fetch_snapshot(self, symbol: str):
-        """
-        CRITICAL: Fetch full order book snapshot from KuCoin REST API.
-        This MUST be called before processing any WebSocket updates.
-        """
+                # Step 2: Get WebSocket details and stream
+                ws_details = await self._get_ws_details()
+                if not ws_details:
+                    logger.error(f"Failed to get WS details for {symbol}, retrying...")
+                    await asyncio.sleep(5)
+                    continue
+                    
+                # Step 3: Connect and stream (returns only on error or cancellation)
+                await self._connect_and_stream(symbol, ws_details)
+                
+            except asyncio.CancelledError:
+                logger.info(f"Order book task cancelled for {symbol}")
+                break
+            except Exception as e:
+                logger.error(f"Error handling order book for {symbol}: {e}")
+                await asyncio.sleep(5)
+
+    async def _fetch_snapshot(self, symbol: str) -> bool:
+        """Fetch snapshot from KuCoin REST API. Returns True on success."""
         try:
             url = f"{settings.KUCOIN_REST_BASE_URL}/api/v1/market/orderbook/level2_100"
             params = {"symbol": symbol}
@@ -148,43 +154,36 @@ class KuCoinOrderBookService:
                 
                 if data.get("code") == "200000" and "data" in data:
                     snapshot = data["data"]
-                    
-                    # Apply snapshot to order book manager
                     order_book = orderbook_manager.get_or_create(symbol)
                     order_book.apply_snapshot(
                         bids=snapshot.get("bids", []),
                         asks=snapshot.get("asks", []),
                         sequence=int(snapshot.get("sequence", 0))
                     )
-                    
-                    # Broadcast initial snapshot via Ably
                     await self._broadcast_snapshot(symbol)
-                    
-                    logger.info(f"Fetched and applied snapshot for {symbol}")
-                else:
-                    logger.error(f"Invalid snapshot response for {symbol}: {data}")
-                    
+                    logger.info(f"Successfully fetched snapshot for {symbol}")
+                    return True
+            logger.error(f"Invalid snapshot response for {symbol}: {data}")
+            return False
         except Exception as e:
             logger.error(f"Error fetching snapshot for {symbol}: {e}")
-            
+            return False
+
     async def _get_ws_details(self) -> Optional[Dict]:
         """Get WebSocket connection details from KuCoin."""
         try:
             url = f"{settings.KUCOIN_REST_BASE_URL}/api/v1/bullet-public"
-            
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(url)
                 response.raise_for_status()
                 data = response.json()
-                
                 if data.get("code") == "200000" and "data" in data:
                     return data["data"]
-                    
+            return None
         except Exception as e:
-            logger.error(f"Error getting WebSocket details: {e}")
-            
-        return None
-        
+            logger.error(f"Error getting WS details: {e}")
+            return None
+
     async def _connect_and_stream(self, symbol: str, ws_details: Dict):
         """Connect to KuCoin WebSocket and stream order book updates."""
         token = ws_details.get("token")
@@ -193,65 +192,46 @@ class KuCoinOrderBookService:
         
         try:
             async with websockets.connect(ws_url) as websocket:
-                # Subscribe to order book topic
                 subscribe_msg = {
                     "id": f"{symbol}-orderbook",
                     "type": "subscribe",
                     "topic": f"/market/level2:{symbol}",
                     "response": True
                 }
-                
                 await websocket.send(json.dumps(subscribe_msg))
-                logger.info(f"Subscribed to KuCoin WebSocket for {symbol}")
                 
-                # Start broadcast loop
-                broadcast_task = asyncio.create_task(self._broadcast_loop(symbol))
-                
-                # Process messages
                 async for message in websocket:
                     if symbol not in self.active_symbols:
                         break
                         
                     data = json.loads(message)
-                    
                     if data.get("type") == "message":
-                        await self._process_update(symbol, data)
-                        
-                # Cancel broadcast task
-                broadcast_task.cancel()
-                try:
-                    await broadcast_task
-                except asyncio.CancelledError:
-                    pass
-                    
+                        # _process_update returns False on sequence gap to trigger resync
+                        if not await self._process_update(symbol, data):
+                            logger.warning(f"Sequence gap for {symbol}, breaking stream for resync")
+                            return
         except Exception as e:
             logger.error(f"WebSocket error for {symbol}: {e}")
-            
-    async def _process_update(self, symbol: str, data: Dict):
-        """Process incremental order book update from WebSocket."""
+
+    async def _process_update(self, symbol: str, data: Dict) -> bool:
+        """Process incremental update. Returns False if gap detected."""
         try:
-            if "data" not in data:
-                return
-                
-            changes = data["data"].get("changes", {})
+            update_data = data.get("data", {})
+            changes = update_data.get("changes", {})
+            sequence_start = int(update_data.get("sequenceStart", 0))
+            sequence_end = int(update_data.get("sequenceEnd", 0))
             
-            # Apply update to order book
             order_book = orderbook_manager.get_or_create(symbol)
-            order_book.apply_update(changes)
+            success = order_book.apply_update(changes, sequence_start, sequence_end)
             
+            if success:
+                # Broadcasting only after sequence validation
+                await self._broadcast_update(symbol)
+                return True
+            return False
         except Exception as e:
             logger.error(f"Error processing update for {symbol}: {e}")
-            
-    async def _broadcast_loop(self, symbol: str):
-        """Broadcast order book updates at configured interval."""
-        while symbol in self.active_symbols:
-            try:
-                await self._broadcast_update(symbol)
-                await asyncio.sleep(settings.ORDER_BOOK_UPDATE_INTERVAL / 1000.0)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in broadcast loop for {symbol}: {e}")
+            return False
                 
     async def _broadcast_snapshot(self, symbol: str):
         """Broadcast full order book snapshot via Ably."""
@@ -263,10 +243,12 @@ class KuCoinOrderBookService:
             data = order_book.get_top_levels(10)
             
             channel_name = f"orderbook:{symbol}"
-            channel = self.ably_client.channels.get(channel_name)
-            await channel.publish("snapshot", data)
-            
-            logger.debug(f"Broadcasted snapshot for {symbol}")
+            # Defensive check for ably_client again for type safety
+            client = self.ably_client
+            if client:
+                channel = client.channels.get(channel_name)
+                await channel.publish("snapshot", data)
+                logger.debug(f"Broadcasted snapshot for {symbol}")
         except Exception as e:
             logger.error(f"Error broadcasting snapshot for {symbol}: {e}")
             
@@ -280,9 +262,11 @@ class KuCoinOrderBookService:
             data = order_book.get_top_levels(10)
             
             channel_name = f"orderbook:{symbol}"
-            channel = self.ably_client.channels.get(channel_name)
-            await channel.publish("update", data)
-            
+            # Defensive check for ably_client again for type safety
+            client = self.ably_client
+            if client:
+                channel = client.channels.get(channel_name)
+                await channel.publish("update", data)
         except Exception as e:
             logger.error(f"Error broadcasting update for {symbol}: {e}")
 

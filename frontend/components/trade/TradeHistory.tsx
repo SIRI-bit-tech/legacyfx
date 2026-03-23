@@ -23,16 +23,17 @@ export function TradeHistory() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const hasFetchedOnce = useRef(false);
 
   useEffect(() => {
-    if (!hasFetchedOnce.current) {
-      hasFetchedOnce.current = true;
-      fetchTradeHistory();
-    }
+    const controller = new AbortController();
+    fetchTradeHistory(controller.signal);
+    
+    return () => {
+      controller.abort();
+    };
   }, [page]);
 
-  const fetchTradeHistory = async () => {
+  const fetchTradeHistory = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
 
@@ -52,6 +53,7 @@ export function TradeHistory() {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/trading/trades/history?${params}`,
         {
+          signal,
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
@@ -63,12 +65,18 @@ export function TradeHistory() {
       if (!response.ok) throw new Error('Failed to fetch trade history');
 
       const data = await response.json();
-      setTrades(data.trades || []);
-      setTotalPages(data.total_pages || 1);
-    } catch (err) {
+      
+      if (!signal?.aborted) {
+        setTrades(data.trades || []);
+        setTotalPages(data.total_pages || 1);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
       console.error('Error fetching trade history:', err);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 

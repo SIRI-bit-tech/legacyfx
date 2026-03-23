@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.engine import make_url
 settings = get_settings()
-# APScheduler SQLAlchemyJobStore needs a synchronous driver (psycopg2)
+# APScheduler SQLAlchemyJobStore needs a synchronous driver (psycopg2) and real credentials
 _url = make_url(settings.DATABASE_URL)
 if _url.drivername == "postgresql+asyncpg":
     _url = _url.set(drivername="postgresql")
-SQLALCHEMY_SYNC_URL = str(_url)
+SQLALCHEMY_SYNC_URL = _url.render_as_string(hide_password=False)
 
 # Initialize Scheduler with persistent job store for multi-worker deployments
 jobstores = {
