@@ -34,8 +34,10 @@ export function useAuth() {
 
         setUser(userData);
         setIsAuthenticated(true);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Auth check error:', err);
+        console.log('Session response status:', err.status);
+        console.log('Session response text:', await err.text());
         api.setToken(null);
         setUser(null);
         setIsAuthenticated(false);
@@ -62,3 +64,4 @@ export function useAuth() {
 
   return { user, loading, isAuthenticated, logout };
 }
+

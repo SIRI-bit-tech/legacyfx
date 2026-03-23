@@ -15,28 +15,50 @@ export const StartCopyTradeModal = ({ trader, onClose, onSuccess }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     copy_mode: 'fixed_amount',
-    fixed_amount: 100,
-    leverage: 1.0,
-    percentage: 10,
-    max_position_size: 1000,
+    fixed_amount: '100',
+    leverage: '1.0',
+    percentage: '10',
+    max_position_size: '1000',
     enable_stop_loss: true,
-    stop_loss_percentage: 10,
+    stop_loss_percentage: '10',
     enable_take_profit: true,
-    take_profit_percentage: 20
+    take_profit_percentage: '20'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Normalize and validate numeric data before submission
+    const submissionData = {
+      trader_id: trader.trader_id || trader.id,
+      ...formData,
+      fixed_amount: parseFloat(formData.fixed_amount) || 0,
+      leverage: parseFloat(formData.leverage) || 1.0,
+      percentage: parseFloat(formData.percentage) || 0,
+      max_position_size: parseFloat(formData.max_position_size) || 0,
+      stop_loss_percentage: parseFloat(formData.stop_loss_percentage) || 0,
+      take_profit_percentage: parseFloat(formData.take_profit_percentage) || 0,
+    };
+
+    if (submissionData.copy_mode === 'fixed_amount' && (submissionData.fixed_amount <= 0)) {
+      setError('Please enter a valid fixed amount greater than 0.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      await api.post((API_ENDPOINTS as any).COPY_TRADING.START, {
-        trader_id: trader.trader_id || trader.id,
-        ...formData
-      });
+      await api.post((API_ENDPOINTS as any).COPY_TRADING.START, submissionData);
       onSuccess();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to start copy trade. Please check your balance or configuration.');
+      const detail = err?.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        // Flatten and join messages from FastAPI validation list
+        const messages = detail.map((d: any) => d.msg || d.detail || JSON.stringify(d));
+        setError(messages.join(', '));
+      } else {
+        setError(detail || 'Failed to start copy trade. Please check your configuration.');
+      }
     } finally {
       setLoading(false);
     }
@@ -85,9 +107,40 @@ export const StartCopyTradeModal = ({ trader, onClose, onSuccess }: Props) => {
                   <input
                     type="number"
                     value={formData.fixed_amount}
-                    onChange={(e) => setFormData({ ...formData, fixed_amount: parseFloat(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, fixed_amount: e.target.value })}
                     className="w-full bg-[#1E2329]/20 border border-white/10 p-5 rounded-2xl outline-none focus:border-[#FCD535] transition-all text-white font-bold"
                   />
+                  <p className="text-[9px] text-[#848E9C] font-medium italic">Mirrors every trade with exactly this USD amount.</p>
+                </div>
+              )}
+
+              {formData.copy_mode === 'proportional' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] text-[#848E9C] font-black uppercase tracking-widest block">Leverage Multiplier</label>
+                  <input
+                    type="number"
+                    value={formData.leverage}
+                    onChange={(e) => setFormData({ ...formData, leverage: e.target.value })}
+                    className="w-full bg-[#1E2329]/20 border border-white/10 p-5 rounded-2xl outline-none focus:border-[#FCD535] transition-all text-white font-bold"
+                    step="0.1"
+                    min="0.1"
+                  />
+                  <p className="text-[9px] text-[#848E9C] font-medium italic">Mirrors trades proportionally to your account size. 1.0 = 1:1 scale.</p>
+                </div>
+              )}
+
+              {formData.copy_mode === 'percentage' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] text-[#848E9C] font-black uppercase tracking-widest block">Copy Percentage (0-100%)</label>
+                  <input
+                    type="number"
+                    value={formData.percentage}
+                    onChange={(e) => setFormData({ ...formData, percentage: e.target.value })}
+                    className="w-full bg-[#1E2329]/20 border border-white/10 p-5 rounded-2xl outline-none focus:border-[#FCD535] transition-all text-white font-bold"
+                    max="100"
+                    min="1"
+                  />
+                  <p className="text-[9px] text-[#848E9C] font-medium italic">Mirrors each trade as a fixed percentage of the Master's position size.</p>
                 </div>
               )}
 
@@ -97,7 +150,7 @@ export const StartCopyTradeModal = ({ trader, onClose, onSuccess }: Props) => {
                   <input
                     type="number"
                     value={formData.stop_loss_percentage}
-                    onChange={(e) => setFormData({ ...formData, stop_loss_percentage: parseFloat(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, stop_loss_percentage: e.target.value })}
                     className="w-full bg-[#1E2329]/20 border border-white/10 p-4 rounded-xl outline-none focus:border-[#FCD535] transition-all text-white font-bold"
                   />
                 </div>
@@ -106,7 +159,7 @@ export const StartCopyTradeModal = ({ trader, onClose, onSuccess }: Props) => {
                   <input
                     type="number"
                     value={formData.take_profit_percentage}
-                    onChange={(e) => setFormData({ ...formData, take_profit_percentage: parseFloat(e.target.value) })}
+                    onChange={(e) => setFormData({ ...formData, take_profit_percentage: e.target.value })}
                     className="w-full bg-[#1E2329]/20 border border-white/10 p-4 rounded-xl outline-none focus:border-[#FCD535] transition-all text-white font-bold"
                   />
                 </div>

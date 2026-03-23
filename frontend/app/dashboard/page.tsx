@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [trades, setTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalStats, setGlobalStats] = useState<any>(null);
+  const [networkStatusExpanded, setNetworkStatusExpanded] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -56,11 +57,53 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-black text-text-primary mb-2">Trader Dashboard</h1>
             <p className="text-text-secondary">Welcome back. Here is what is happening with your portfolio today.</p>
           </div>
-          <div className="hidden md:block text-right">
+          <div className="hidden md:block text-right relative">
              <p className="text-[10px] text-text-tertiary font-bold uppercase mb-1">System Status</p>
-             <div className="flex items-center gap-2 text-color-success text-xs font-bold">
+             <div 
+               className="flex items-center gap-2 text-color-success text-xs font-bold cursor-pointer hover:opacity-80 transition"
+               onClick={() => setNetworkStatusExpanded(!networkStatusExpanded)}
+             >
                 <i className="pi pi-circle-fill text-[8px]"></i> Operational
+                <i className={`pi pi-chevron-${networkStatusExpanded ? 'up' : 'down'} text-[8px]`}></i>
              </div>
+             {networkStatusExpanded && (
+               <div className="absolute right-0 top-full mt-2 bg-bg-secondary border border-color-border rounded-lg p-3 shadow-xl z-10 min-w-[220px]">
+                 <div className="space-y-2">
+                   <div className="flex items-center justify-between text-[11px]">
+                     <span className="text-text-secondary">ETH Mainnet</span>
+                     <div className="flex items-center gap-2">
+                       <span className="text-text-tertiary">Gas: 12 Gwei</span>
+                       <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
+                       <span className="text-color-success font-bold">Live</span>
+                     </div>
+                   </div>
+                   <div className="flex items-center justify-between text-[11px]">
+                     <span className="text-text-secondary">BTC Network</span>
+                     <div className="flex items-center gap-2">
+                       <span className="text-text-tertiary">Mempool: Normal</span>
+                       <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
+                       <span className="text-color-success font-bold">Live</span>
+                     </div>
+                   </div>
+                   <div className="flex items-center justify-between text-[11px]">
+                     <span className="text-text-secondary">BSC</span>
+                     <div className="flex items-center gap-2">
+                       <span className="text-text-tertiary">Congestion: Low</span>
+                       <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
+                       <span className="text-color-success font-bold">Live</span>
+                     </div>
+                   </div>
+                   <div className="flex items-center justify-between text-[11px]">
+                     <span className="text-text-secondary">Solana</span>
+                     <div className="flex items-center gap-2">
+                       <span className="text-text-tertiary">TPS: 2,847</span>
+                       <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
+                       <span className="text-color-success font-bold">Live</span>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             )}
           </div>
         </header>
 
@@ -146,9 +189,55 @@ export default function DashboardPage() {
                 </table>
               </div>
             ) : (
-              <div className="p-12 text-center">
-                 <i className="pi pi-inbox text-4xl text-text-tertiary mb-4"></i>
-                 <p className="text-text-secondary">No holdings yet. Start trading to build your portfolio.</p>
+              <div className="p-8">
+                {/* P&L Chart Placeholder */}
+                <div className="mb-8 h-20 border border-dashed border-color-border/50 rounded-lg flex items-center justify-center">
+                  <p className="text-text-tertiary text-xs">P&L chart will appear once you hold assets</p>
+                </div>
+                
+                {/* Empty State */}
+                <div className="text-center mb-8">
+                  <i className="pi pi-inbox text-4xl text-text-tertiary mb-4"></i>
+                  <p className="text-text-secondary mb-6">No holdings yet. Start trading to build your portfolio.</p>
+                  <Link 
+                    href="/trade" 
+                    className="inline-flex items-center gap-2 bg-color-primary hover:bg-color-primary/90 text-bg-primary font-bold px-6 py-3 rounded-lg transition shadow-lg"
+                  >
+                    Start Trading <i className="pi pi-arrow-right text-sm"></i>
+                  </Link>
+                </div>
+
+                {/* Suggested Assets */}
+                <div className="mt-8">
+                  <h3 className="text-text-tertiary text-[10px] font-black uppercase tracking-widest mb-4">Suggested Assets</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      { symbol: 'BTC', name: 'Bitcoin', price: 67234.50, change: 2.34, icon: '/icons/crypto/btc.svg' },
+                      { symbol: 'ETH', name: 'Ethereum', price: 3456.78, change: 1.89, icon: '/icons/crypto/eth.svg' },
+                      { symbol: 'SOL', name: 'Solana', price: 142.56, change: 4.12, icon: '/icons/crypto/sol.svg' }
+                    ].map((asset) => (
+                      <div key={asset.symbol} className="bg-bg-tertiary/30 border border-color-border rounded-lg p-4 hover:border-color-primary/30 transition">
+                        <div className="flex items-center gap-2 mb-3">
+                          <img src={asset.icon} alt={asset.symbol} className="w-6 h-6" />
+                          <div>
+                            <p className="font-bold text-xs text-text-primary">{asset.symbol}</p>
+                            <p className="text-[9px] text-text-tertiary">{asset.name}</p>
+                          </div>
+                        </div>
+                        <p className="font-mono text-sm font-bold text-text-primary mb-1">${asset.price.toLocaleString()}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-color-success">+{asset.change}%</p>
+                          <Link 
+                            href={`/trade?pair=${asset.symbol}/USDT`}
+                            className="text-[9px] font-bold text-color-primary hover:underline uppercase tracking-wider"
+                          >
+                            Trade
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -159,23 +248,50 @@ export default function DashboardPage() {
                <h2 className="font-bold text-xl text-text-primary">Market Watch</h2>
             </div>
             <div className="flex-1 overflow-y-auto max-h-[400px]">
-              {prices.slice(0, 10).map((p: any) => (
-                <div key={p.symbol} className="px-6 py-4 flex items-center justify-between border-b border-color-border/30 hover:bg-bg-tertiary/30 transition">
-                  <div className="flex items-center gap-3">
-                     <img src={p.image_url} alt="" className="w-6 h-6 rounded-full" />
-                     <div>
-                        <p className="font-black text-xs text-text-primary">{p.symbol}</p>
-                        <p className="text-[10px] text-text-tertiary">{p.name}</p>
-                     </div>
+              {prices.slice(0, 10).map((p: any, idx: number) => {
+                const sparklineColor = p.price_change_percentage_24h >= 0 ? '#0ECB81' : '#F6465D';
+                // Generate realistic sparkline path data
+                const sparklinePaths = [
+                  'M 0 20 Q 10 18, 20 15 T 40 12 T 60 8',
+                  'M 0 8 Q 10 12, 20 10 T 40 15 T 60 20',
+                  'M 0 16 Q 10 14, 20 12 T 40 10 T 60 6',
+                  'M 0 10 Q 10 8, 20 12 T 40 14 T 60 18',
+                  'M 0 18 Q 10 15, 20 13 T 40 9 T 60 5',
+                  'M 0 6 Q 10 9, 20 11 T 40 15 T 60 19',
+                  'M 0 14 Q 10 12, 20 10 T 40 8 T 60 4',
+                  'M 0 12 Q 10 14, 20 16 T 40 18 T 60 22',
+                  'M 0 22 Q 10 19, 20 16 T 40 12 T 60 8',
+                  'M 0 8 Q 10 10, 20 12 T 40 16 T 60 20'
+                ];
+                const sparklinePath = sparklinePaths[idx % sparklinePaths.length];
+                
+                return (
+                  <div key={p.symbol} className="px-6 py-4 flex items-center justify-between border-b border-color-border/30 hover:bg-bg-tertiary/30 transition">
+                    <div className="flex items-center gap-3">
+                       <img src={p.image_url} alt="" className="w-6 h-6 rounded-full" />
+                       <div>
+                          <p className="font-black text-xs text-text-primary">{p.symbol}</p>
+                          <p className="text-[10px] text-text-tertiary">{p.name}</p>
+                       </div>
+                    </div>
+                    <svg width="60" height="32" viewBox="0 0 60 32" className="mx-2">
+                      <path 
+                        d={sparklinePath}
+                        fill="none" 
+                        stroke={sparklineColor} 
+                        strokeWidth="2"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                    <div className="text-right">
+                      <p className="font-mono font-bold text-text-primary text-sm">${p.current_price.toLocaleString()}</p>
+                      <p className={`text-[10px] font-bold ${p.price_change_percentage_24h >= 0 ? 'text-color-success' : 'text-color-danger'}`}>
+                         {p.price_change_percentage_24h >= 0 ? '+' : ''}{p.price_change_percentage_24h?.toFixed(2)}%
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-mono font-bold text-text-primary text-sm">${p.current_price.toLocaleString()}</p>
-                    <p className={`text-[10px] font-bold ${p.price_change_percentage_24h >= 0 ? 'text-color-success' : 'text-color-danger'}`}>
-                       {p.price_change_percentage_24h >= 0 ? '+' : ''}{p.price_change_percentage_24h?.toFixed(2)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <Link href="/markets" className="p-4 bg-bg-tertiary/20 text-center text-color-primary hover:bg-bg-tertiary/50 text-[10px] font-black uppercase tracking-widest transition">
                View All Markets <i className="pi pi-angle-right ml-1"></i>

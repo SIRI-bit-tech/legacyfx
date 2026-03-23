@@ -52,9 +52,25 @@ async def lifespan(app: FastAPI):
     # from alembic import command
     # alembic_cfg = Config("alembic.ini")
     # command.upgrade(alembic_cfg, "head")
+    
     # Start Background Tasks
     from app.tasks.mining_updater import start_mining_background_tasks
     start_mining_background_tasks()
+    
+    # Start Price Broadcast Service
+    from app.services.price_broadcast import price_broadcast_service
+    await price_broadcast_service.start()
+    logger.info("Price broadcast service started")
+    
+    # Start KuCoin Order Book Service
+    from app.services.kucoin_orderbook import kucoin_orderbook_service
+    await kucoin_orderbook_service.start()
+    logger.info("KuCoin order book service started")
+
+    # Start Synthetic Order Book Service (forex & stocks)
+    from app.services.synthetic_orderbook import synthetic_orderbook_service
+    await synthetic_orderbook_service.start()
+    logger.info("Synthetic order book service started")
     
     yield
     
@@ -62,6 +78,22 @@ async def lifespan(app: FastAPI):
     from app.tasks.mining_updater import scheduler
     if scheduler.running:
         scheduler.shutdown(wait=True)
+    
+    # Stop Price Broadcast Service
+    from app.services.price_broadcast import price_broadcast_service
+    await price_broadcast_service.stop()
+    logger.info("Price broadcast service stopped")
+    
+    # Stop KuCoin Order Book Service
+    from app.services.kucoin_orderbook import kucoin_orderbook_service
+    await kucoin_orderbook_service.stop()
+    logger.info("KuCoin order book service stopped")
+
+    # Stop Synthetic Order Book Service
+    from app.services.synthetic_orderbook import synthetic_orderbook_service
+    await synthetic_orderbook_service.stop()
+    logger.info("Synthetic order book service stopped")
+    
     await engine.dispose()
 
 

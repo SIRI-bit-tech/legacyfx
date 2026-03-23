@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = ""
     BINANCE_SECRET_KEY: str = ""
 
+    # Twelve Data
+    TWELVE_DATA_API_KEY: str = ""
+    TWELVE_DATA_BASE_URL: str = "https://api.twelvedata.com"
+
+    # KuCoin
+    KUCOIN_API_KEY: str = ""
+    KUCOIN_API_SECRET: str = ""
+    KUCOIN_API_PASSPHRASE: str = ""
+    KUCOIN_WS_BASE_URL: str = "wss://ws-api.kucoin.com"
+    KUCOIN_REST_BASE_URL: str = "https://api.kucoin.com"
+
     # Bybit
     BYBIT_API_KEY: str = ""
     BYBIT_SECRET_KEY: str = ""
@@ -25,6 +36,11 @@ class Settings(BaseSettings):
     # Ably
     ABLY_API_KEY: str = ""
     ABLY_KEY: str = ""
+    ABLY_CLIENT_ID: str = "trade-server"
+
+    # Trading Configuration
+    PRICE_UPDATE_INTERVAL: int = 3000
+    ORDER_BOOK_UPDATE_INTERVAL: int = 250
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""

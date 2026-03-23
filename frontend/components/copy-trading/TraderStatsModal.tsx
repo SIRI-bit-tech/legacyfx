@@ -15,8 +15,12 @@ export const TraderStatsModal = ({ trader, onClose }: Props) => {
     roi: parseFloat((parseFloat(p.pnlRatio || 0) * 100).toFixed(2)),
   }));
 
-  const worstWeek = roiData.reduce((min: any, d: any) => d.roi < min.roi ? d : min, roiData[0] || { roi: 0 });
-  const maxDrawdown = Math.abs(Math.min(0, worstWeek?.roi ?? 0)).toFixed(1);
+  const worstWeek = roiData.length > 0 
+    ? roiData.reduce((min: any, d: any) => d.roi < min.roi ? d : min, roiData[0])
+    : { roi: 0 };
+  
+  const drawdownValue = Math.abs(Math.min(0, worstWeek.roi));
+  const maxDrawdown = drawdownValue.toFixed(1);
   const riskScore = parseFloat(maxDrawdown) < 10 ? 'Low' : parseFloat(maxDrawdown) < 30 ? 'Medium' : 'High';
   const riskColor = riskScore === 'Low' ? 'text-green-400' : riskScore === 'Medium' ? 'text-yellow-400' : 'text-red-400';
   const pairs = (trader.traderInsts || []).slice(0, 10).map((p: string) => p.replace('-SWAP', ''));
@@ -53,7 +57,7 @@ export const TraderStatsModal = ({ trader, onClose }: Props) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-[#1E2329]/20 rounded-2xl p-6 border border-white/5 text-center">
               <div className="text-[10px] text-[#848E9C] font-black uppercase mb-1 tracking-widest">Total ROI</div>
-              <div className="text-3xl font-black text-[#FCD535]">{(parseFloat(trader.roi || 0) * 100).toFixed(1)}%</div>
+              <div className="text-3xl font-black text-[#FCD535]">{parseFloat(trader.roi || 0).toFixed(1)}%</div>
             </div>
             <div className="bg-[#1E2329]/20 rounded-2xl p-6 border border-white/5 text-center">
               <div className="text-[10px] text-[#848E9C] font-black uppercase mb-1 tracking-widest">Win Rate</div>
