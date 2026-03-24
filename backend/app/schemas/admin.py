@@ -1,19 +1,33 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
 
-class AdminUserResponse(BaseModel):
+class AdminProfile(BaseModel):
     id: str
-    email: str
-    username: str
+    email: EmailStr
+    name: str
     status: str
-    tier: str
     created_at: datetime
-    kyc_status: str
 
     class Config:
         from_attributes = True
+
+
+class AdminAuthResponse(BaseModel):
+    access_token: str
+    admin: AdminProfile
+
+
+class AdminRegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    admin_code: str
+
+
+class AdminLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 class AdminTransactionResponse(BaseModel):

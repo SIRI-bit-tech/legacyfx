@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
 
+    # Admin Portal
+    ADMIN_REGISTRATION_CODE: str = "LEGACY_ADMIN_2024"
+    UPLOADTHING_SECRET: str = ""
+    UPLOADTHING_APP_ID: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
