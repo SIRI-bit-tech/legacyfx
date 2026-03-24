@@ -8,8 +8,10 @@ import asyncio
 
 from app.config import get_settings
 from app.database import engine, Base
+from app.utils.db_migrations import run_startup_migrations
 
 # Import all models to ensure they're registered with Base.metadata FIRST
+from app.models.admin import Admin
 from app.models.user import User
 from app.models.document import Document
 from app.models.wallet import Wallet
@@ -47,12 +49,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for app startup and shutdown"""
-    # On startup, you could run migrations here, but it's better to do it manually.
-    # print("Running database migrations...")
-    # from alembic.config import Config
-    # from alembic import command
-    # alembic_cfg = Config("alembic.ini")
-    # command.upgrade(alembic_cfg, "head")
+    await run_startup_migrations()
     
     # Start Background Tasks
     from app.tasks.mining_updater import start_mining_background_tasks
@@ -138,6 +135,15 @@ app.include_router(subscriptions.router)
 app.include_router(copy_trading.router)
 app.include_router(admin.router)
 app.include_router(ably.router)
+
+from fastapi.staticfiles import StaticFiles
+import os
+
+uploads_dir = os.path.join(os.getcwd(), "app", "uploads")
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir)
+
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

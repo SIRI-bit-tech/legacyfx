@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update
 from typing import List, Optional
@@ -7,27 +7,48 @@ import uuid
 import logging
 
 from app.database import get_db
-from app.models.user import User, UserTier
+from app.models.user import User
+from app.models.admin import Admin
+from app.models.asset import Asset
 from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus, Transaction, TransactionType
 from app.models.deposit_addresses import DepositAddress
 from app.models.mining import MiningPlan, MiningSubscription, MiningStatus
 from app.models.settings import SystemSettings
-from app.utils.auth import get_current_user
+from app.models.trading import ExecutionTrade
+from app.utils.admin_auth import get_current_admin
 from app.utils.market import get_live_price
+from app.schemas.admin import AdminRegisterRequest, AdminLoginRequest, AdminAuthResponse
+from app.services.admin_auth_service import register_admin_account, login_admin_account
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 logger = logging.getLogger(__name__)
 
+@router.post("/auth/register")
+async def register_admin(request: AdminRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Strongly verified admin registration using a secret environment code."""
+    return await register_admin_account(
+        db=db,
+        name=request.name,
+        email=request.email,
+        password=request.password,
+        admin_code=request.admin_code
+    )
+
+
+@router.post("/auth/login", response_model=AdminAuthResponse)
+async def login_admin(request: AdminLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Admin login using a dedicated admin account."""
+    return await login_admin_account(
+        db=db,
+        email=request.email,
+        password=request.password
+    )
+
 # Helper dependency to check if user is admin
-async def require_admin(current_user: User = Depends(get_current_user)):
-    if current_user.tier != UserTier.DIAMOND:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return current_user
+async def require_admin(current_admin: Admin = Depends(get_current_admin)) -> Admin:
+    return current_admin
 
 @router.get("/stats")
 async def get_platform_stats(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
@@ -357,3 +378,152 @@ async def list_deposit_addresses(
         }
         for r in rows
     ]
+
+
+@router.get("/deposits", response_model=List[dict])
+async def list_all_deposits(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """List all user deposits for admin review."""
+    stmt = select(Deposit, User.email).join(User, Deposit.user_id == User.id).order_by(Deposit.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        {
+            "id": d.id,
+            "user_id": d.user_id,
+            "user_email": email,
+            "asset_symbol": d.asset_symbol,
+            "amount": d.amount,
+            "fiat_amount": d.fiat_amount,
+            "status": d.status,
+            "blockchain_network": d.blockchain_network,
+            "transaction_hash": d.transaction_hash,
+            "created_at": d.created_at
+        } for d, email in rows
+    ]
+
+
+@router.get("/withdrawals", response_model=List[dict])
+async def list_all_withdrawals(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """List all user withdrawals for admin review."""
+    stmt = select(Withdrawal, User.email).join(User, Withdrawal.user_id == User.id).order_by(Withdrawal.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        {
+            "id": w.id,
+            "user_id": w.user_id,
+            "user_email": email,
+            "asset_symbol": w.asset_symbol,
+            "amount": w.amount,
+            "fee": w.fee,
+            "net_amount": w.net_amount,
+            "destination_address": w.destination_address,
+            "blockchain_network": w.blockchain_network,
+            "status": w.status,
+            "created_at": w.created_at
+        } for w, email in rows
+    ]
+
+
+@router.get("/transactions", response_model=List[dict])
+async def list_all_transactions(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """List all platform transactions for audit."""
+    stmt = select(Transaction, User.email).join(User, Transaction.user_id == User.id).order_by(Transaction.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        {
+            "id": t.id,
+            "user_email": email,
+            "type": t.type,
+            "asset_symbol": t.asset_symbol,
+            "amount": t.amount,
+            "usd_amount": t.usd_amount,
+            "status": t.status,
+            "created_at": t.created_at,
+            "reference_id": t.reference_id
+        } for t, email in rows
+    ]
+
+
+@router.get("/orders", response_model=List[dict])
+async def list_all_orders(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """List all execution trades (orders) for monitoring."""
+    stmt = select(ExecutionTrade, User.email).join(User, ExecutionTrade.user_id == User.id).order_by(ExecutionTrade.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+    return [
+        {
+            "id": t.id,
+            "user_email": email,
+            "symbol": t.symbol,
+            "side": t.side,
+            "quantity": t.quantity,
+            "price": t.price,
+            "created_at": t.created_at
+        } for t, email in rows
+    ]
+
+
+@router.get("/assets", response_model=List[dict])
+async def list_assets(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """List all configured assets."""
+    stmt = select(Asset).order_by(Asset.symbol)
+    result = await db.execute(stmt)
+    assets = result.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "symbol": a.symbol,
+            "name": a.name,
+            "price": a.current_price,
+            "change24h": a.price_change_percentage_24h,
+            "is_enabled": a.is_active
+        } for a in assets
+    ]
+
+
+@router.patch("/assets/{asset_id}/toggle")
+async def toggle_asset(asset_id: str, is_enabled: bool, db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """Toggle asset active status."""
+    stmt = update(Asset).where(Asset.id == asset_id).values(is_active=is_enabled)
+    await db.execute(stmt)
+    await db.commit()
+    return {"message": f"Asset {'enabled' if is_enabled else 'disabled'}"}
+
+
+class AssetCreateRequest(BaseModel):
+    symbol: str
+    name: str
+
+@router.post("/assets")
+async def create_asset(request: AssetCreateRequest, db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """Add a new tradable asset."""
+    asset = Asset(
+        id=str(uuid.uuid4()),
+        symbol=request.symbol.upper(),
+        name=request.name,
+        is_active=True
+    )
+    db.add(asset)
+    await db.commit()
+    return {"message": "Asset added successfully"}
+
+
+@router.get("/settings")
+async def get_all_settings(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """Retrieve all system settings."""
+    stmt = select(SystemSettings)
+    result = await db.execute(stmt)
+    settings = result.scalars().all()
+    return {s.key: s.value for s in settings}
+
+
+@router.patch("/settings")
+async def update_settings(settings_dict: dict, db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+    """Batch update system settings."""
+    for key, value in settings_dict.items():
+        stmt = update(SystemSettings).where(SystemSettings.key == key).values(value=str(value))
+        await db.execute(stmt)
+    await db.commit()
+    return {"message": "Settings updated successfully"}

@@ -1,34 +1,57 @@
-"""
-Admin authentication utilities
-"""
-import logging
-from database import SessionLocal
-from models.user import User
+"""Admin authentication utilities."""
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-logger = logging.getLogger(__name__)
+from app.database import get_db
+from app.models.admin import Admin, AdminStatus
+from app.utils.auth import verify_token
+
+oauth2_admin_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/admin/auth/login")
 
 
-async def is_admin(user_id: str) -> bool:
-    """Check if user is admin"""
-    db = SessionLocal()
+async def get_current_admin(
+    token: str = Depends(oauth2_admin_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Admin:
+    """Dependency for getting the currently authenticated admin."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate admin credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     try:
-        user = db.query(User).filter(User.id == user_id).first()
-        return user and user.role == "admin" if hasattr(user, 'role') else False
-    except Exception as e:
-        logger.error(f"Admin check error: {e}")
-        return False
-    finally:
-        db.close()
+        payload = verify_token(token)
+        if payload is None:
+            raise credentials_exception
 
+        if payload.get("type") != "admin":
+            raise credentials_exception
 
-async def is_support_agent(user_id: str) -> bool:
-    """Check if user is support agent"""
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        return user and user.role in ["admin", "support"] if hasattr(user, 'role') else False
-    except Exception as e:
-        logger.error(f"Support agent check error: {e}")
-        return False
-    finally:
-        db.close()
+        admin_id: str | None = payload.get("sub")
+        if not admin_id:
+            raise credentials_exception
+
+        stmt = select(Admin).where(Admin.id == admin_id)
+        result = await db.execute(stmt)
+        admin = result.scalar_one_or_none()
+
+        if not admin:
+            raise credentials_exception
+
+        if admin.status != AdminStatus.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin account is disabled"
+            )
+
+        return admin
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to validate admin session: {str(exc)}"
+        )
