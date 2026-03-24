@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.finance import Deposit, DepositStatus, Transaction, TransactionType
 from app.utils.auth import get_current_user
 from app.utils.market import get_live_price
+from app.models.deposit_addresses import DepositAddress
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/deposits", tags=["deposits"])
@@ -35,24 +36,36 @@ async def request_deposit(
     db: AsyncSession = Depends(get_db)
 ):
     """Generate a deposit address for the user."""
-    # In a real app, this would call a wallet service (like BitGo, Fireblocks)
-    # For this broker, we provide a static address per user or dynamic
-    mock_addresses = {
-        "BTC": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
-        "ETH": "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae",
-        "USDT": "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae"
-    }
-    
-    address = mock_addresses.get(request.asset_symbol.upper(), "0xADDRESS_NOT_FOUND")
+    asset_norm = request.asset_symbol.upper().strip()
+    # Normalize network: handle empty/whitespace and convert to uppercase for consistency
+    raw_net = request.blockchain_network or 'ERC20'
+    stripped_net = raw_net.strip().upper()
+    network_norm = stripped_net if stripped_net else 'ERC20'
+
+    stmt = select(DepositAddress).where(
+        DepositAddress.asset == asset_norm,
+        DepositAddress.network == network_norm,
+        DepositAddress.is_active.is_(True),
+    )
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Deposit address for this network is not available yet. Please contact support.",
+        )
+
+    address = row.address
     
     deposit_id = str(uuid.uuid4())
     new_deposit = Deposit(
         id=deposit_id,
         user_id=current_user.id,
-        asset_symbol=request.asset_symbol.upper(),
+        asset_symbol=asset_norm,
         amount=request.amount,
         wallet_address=address,
-        blockchain_network=request.blockchain_network,
+        blockchain_network=network_norm,
         status=DepositStatus.PENDING
     )
     
@@ -61,10 +74,10 @@ async def request_deposit(
     
     return DepositResponse(
         id=deposit_id,
-        asset_symbol=request.asset_symbol.upper(),
+        asset_symbol=asset_norm,
         amount=request.amount,
         wallet_address=address,
-        blockchain_network=request.blockchain_network or "ERC20",
+        blockchain_network=network_norm,
         status="PENDING",
         created_at=datetime.utcnow()
     )

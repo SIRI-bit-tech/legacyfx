@@ -12,6 +12,7 @@ class DepositStatus(str, enum.Enum):
 
 class WithdrawalStatus(str, enum.Enum):
     PENDING_2FA = "PENDING_2FA"
+    AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
     PENDING_APPROVAL = "PENDING_APPROVAL"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
@@ -62,6 +63,10 @@ class Withdrawal(Base):
     
     status = Column(Enum(WithdrawalStatus), default=WithdrawalStatus.PENDING_2FA)
     rejection_reason = Column(Text, nullable=True)
+
+    # Email-confirm-first flow for user withdrawals
+    confirmation_token = Column(String(255), nullable=True, index=True)
+    confirmation_expires_at = Column(DateTime, nullable=True)
     
     approved_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)

@@ -1,6 +1,6 @@
 import logging
 import logging.handlers
-from config import settings
+from app.config import settings
 
 
 def setup_logger(name: str) -> logging.Logger:

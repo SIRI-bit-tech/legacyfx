@@ -21,6 +21,7 @@ class PriceBroadcastService:
     def __init__(self):
         self.ably_client: Optional[AblyRest] = None
         self.active_symbols: Set[str] = set()
+        self.per_symbol_users: Dict[str, Set[str]] = {}
         self.price_cache: Dict[str, dict] = {}
         self.running = False
         self.task: Optional[asyncio.Task] = None
@@ -66,6 +67,22 @@ class PriceBroadcastService:
     def remove_symbol(self, symbol: str):
         """Remove a symbol from tracking."""
         self.active_symbols.discard(symbol)
+
+    def subscribe_symbol_for_user(self, user_id: str, symbol: str):
+        """Track per-user subscriptions for a symbol."""
+        if symbol not in self.per_symbol_users:
+            self.per_symbol_users[symbol] = set()
+        self.per_symbol_users[symbol].add(user_id)
+        if symbol not in self.active_symbols:
+            self.add_symbol(symbol)
+
+    def unsubscribe_symbol_for_user(self, user_id: str, symbol: str):
+        """Untrack user's subscription; stop tracking symbol if no users left."""
+        if symbol in self.per_symbol_users:
+            self.per_symbol_users[symbol].discard(user_id)
+            if not self.per_symbol_users[symbol]:
+                self.per_symbol_users.pop(symbol, None)
+                self.remove_symbol(symbol)
         
     async def _broadcast_loop(self):
         """Main loop with batch processing and adaptive throttling."""
