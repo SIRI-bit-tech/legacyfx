@@ -94,11 +94,11 @@ export function usePortfolioAssets(userId?: string): {
           await api.post('/prices/subscribe', { userId: effectiveUserId, symbols: symbolsToSubscribe });
         }
       } catch (err: any) {
-        if (cancelled) return;
-        setError(String(err?.message || 'Failed to load portfolio assets'));
+        if (!cancelled) {
+          setError(String(err?.message || 'Failed to load portfolio assets'));
+        }
       } finally {
-        if (cancelled) return;
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 

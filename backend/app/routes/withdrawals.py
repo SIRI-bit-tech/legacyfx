@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
-import uuid
 from datetime import datetime, timedelta
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models.user import User
@@ -98,8 +101,22 @@ async def request_withdrawal(
             currency=request.asset_symbol.upper(),
             token=confirmation_token,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to send withdrawal confirmation email for {withdrawal_id}: {str(e)}")
+        # Revert withdrawal and restore balance
+        new_withdrawal.status = WithdrawalStatus.CANCELLED
+        new_withdrawal.confirmation_token = None # Invalidate token
+        txn.status = "FAILED"
+        
+        # Restore balance
+        current_user.trading_balance += usd_value
+        current_user.account_balance += usd_value
+        
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send confirmation email. Withdrawal has been cancelled and funds restored."
+        )
     
     return WithdrawalResponse(
         id=withdrawal_id,
@@ -140,7 +157,12 @@ async def cancel_withdrawal(
     db: AsyncSession = Depends(get_db)
 ):
     """Cancel a pending withdrawal request."""
-    stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id, Withdrawal.user_id == current_user.id)
+    # Use SELECT FOR UPDATE to prevent race conditions
+    stmt = select(Withdrawal).where(
+        Withdrawal.id == withdrawal_id, 
+        Withdrawal.user_id == current_user.id
+    ).with_for_update()
+    
     result = await db.execute(stmt)
     withdrawal = result.scalar_one_or_none()
     
@@ -162,7 +184,7 @@ async def cancel_withdrawal(
     return {"message": "Withdrawal cancelled and balance refunded"}
 
 
-@router.post("/confirm")
+@router.get("/confirm")
 async def confirm_withdrawal(
     token: str,
     db: AsyncSession = Depends(get_db),
@@ -171,7 +193,11 @@ async def confirm_withdrawal(
     if not token:
         raise HTTPException(status_code=400, detail="Token is required")
 
-    stmt = select(Withdrawal).where(Withdrawal.confirmation_token == token)
+    # Use SELECT FOR UPDATE to prevent race conditions
+    stmt = select(Withdrawal).where(
+        Withdrawal.confirmation_token == token
+    ).with_for_update()
+    
     result = await db.execute(stmt)
     withdrawal = result.scalar_one_or_none()
 

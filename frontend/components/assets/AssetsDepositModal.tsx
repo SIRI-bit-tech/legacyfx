@@ -87,7 +87,7 @@ export function AssetsDepositModal({
       >
         <div className="px-6 py-4 border-b border-color-border flex justify-between items-center">
           <h2 className="text-xl font-bold text-text-primary">Deposit</h2>
-          <button type="button" onClick={onClose} className="w-10 h-10 rounded-lg hover:bg-bg-tertiary transition">
+          <button type="button" onClick={onClose} aria-label="Close deposit dialog" className="w-10 h-10 rounded-lg hover:bg-bg-tertiary transition">
             <i className="pi pi-times" />
           </button>
         </div>

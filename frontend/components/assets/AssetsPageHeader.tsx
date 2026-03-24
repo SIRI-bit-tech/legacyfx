@@ -25,7 +25,7 @@ export function AssetsPageHeader({
           onClick={onDeposit}
           className="bg-color-primary text-bg-primary px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 hover:bg-color-primary-hover transition shadow-lg shadow-color-primary/10"
         >
-          <i className="pi pi-plus" /> + Deposit
+          <i className="pi pi-plus" /> Deposit
         </button>
         <button
           type="button"

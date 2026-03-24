@@ -188,7 +188,12 @@ class KuCoinOrderBookService:
     async def _connect_and_stream(self, symbol: str, ws_details: Dict):
         """Connect to KuCoin WebSocket and stream order book updates."""
         token = ws_details.get("token")
-        server = ws_details["instanceServers"][0]
+        instance_servers = ws_details.get("instanceServers")
+        if not isinstance(instance_servers, list) or not instance_servers:
+            logger.error(f"No KuCoin WS instance servers available for {symbol}. WS details: {ws_details}")
+            return
+
+        server = instance_servers[0]
         endpoint = server["endpoint"]
         ping_interval_ms = int(server.get("pingInterval", 10000))
         ping_timeout_ms = int(server.get("pingTimeout", 20000))

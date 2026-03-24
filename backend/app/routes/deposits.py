@@ -37,7 +37,10 @@ async def request_deposit(
 ):
     """Generate a deposit address for the user."""
     asset_norm = request.asset_symbol.upper().strip()
-    network_norm = (request.blockchain_network or 'ERC20').strip()
+    # Normalize network: handle empty/whitespace and convert to uppercase for consistency
+    raw_net = request.blockchain_network or 'ERC20'
+    stripped_net = raw_net.strip().upper()
+    network_norm = stripped_net if stripped_net else 'ERC20'
 
     stmt = select(DepositAddress).where(
         DepositAddress.asset == asset_norm,

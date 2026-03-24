@@ -58,12 +58,23 @@ async def get_funds_summary(
     if userId != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    from app.utils.market import get_live_price
+
     assets_stmt = select(UserAsset).where(UserAsset.user_id == userId)
     assets_result = await db.execute(assets_stmt)
     assets = assets_result.scalars().all()
 
-    available_assets_value = sum(float(a.available_balance or 0) for a in assets)
-    in_orders_assets_value = sum(float((a.total_balance or 0) - (a.available_balance or 0)) for a in assets)
+    available_assets_value = 0.0
+    in_orders_assets_value = 0.0
+
+    for a in assets:
+        price = await get_live_price(a.asset_symbol)
+        qty_available = float(a.available_balance or 0)
+        qty_total = float(a.total_balance or 0)
+        
+        available_assets_value += (qty_available * price)
+        in_orders_assets_value += ((qty_total - qty_available) * price)
+
     available = float(current_user.trading_balance or 0) + available_assets_value
     in_orders = in_orders_assets_value
     net_worth = available + in_orders
@@ -146,9 +157,9 @@ async def subscribe_prices(
 
     for sym in normalized:
         if action == "unsubscribe":
-            price_broadcast_service.remove_symbol(sym)
+            price_broadcast_service.unsubscribe_symbol_for_user(user_id, sym)
         else:
-            price_broadcast_service.add_symbol(sym)
+            price_broadcast_service.subscribe_symbol_for_user(user_id, sym)
 
     return {"success": True, "symbols": normalized, "action": action}
 

@@ -129,7 +129,7 @@ export function AssetsRecentTransactions({
                           t.status
                         )}`}
                       >
-                        {t.status.replace('_', ' ').toUpperCase()}
+                        {t.status.replace(/_/g, ' ').toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-text-tertiary">{t.network}</td>

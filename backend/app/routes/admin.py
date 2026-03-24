@@ -265,7 +265,7 @@ async def create_deposit_address(
     deposit_address = DepositAddress(
         id=new_id,
         asset=request.asset.upper().strip(),
-        network=request.network.strip(),
+        network=request.network.upper().strip(),
         address=request.address.strip(),
         qr_code_url=request.qrCodeUrl.strip(),
         min_deposit=float(request.minDeposit or 0.0),
@@ -306,7 +306,7 @@ async def update_deposit_address(
     if request.asset is not None:
         row.asset = request.asset.upper().strip()
     if request.network is not None:
-        row.network = request.network.strip()
+        row.network = request.network.upper().strip()
     if request.address is not None:
         row.address = request.address.strip()
     if request.qrCodeUrl is not None:

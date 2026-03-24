@@ -59,7 +59,7 @@ class EmailService:
         """Send withdrawal confirmation email"""
         try:
             subject = f"Confirm Your Withdrawal - {amount} {currency}"
-            confirm_url = f"{settings.FRONTEND_URL}/api/v1/withdrawals/confirm?token={token}"
+            confirm_url = f"{settings.FRONTEND_URL}/confirm-withdrawal?token={token}"
             html_body = f"""
             <html>
                 <body>

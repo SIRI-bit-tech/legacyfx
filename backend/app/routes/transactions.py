@@ -43,6 +43,11 @@ async def recent_transactions(
     if userId != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    # Validate and sanitize limit
+    MAX_LIMIT = 100
+    # Enforce minimum 1, maximum MAX_LIMIT
+    limit = max(1, min(int(limit or 5), MAX_LIMIT))
+
     dep_stmt = (
         select(Deposit)
         .where(Deposit.user_id == userId)

@@ -6,7 +6,7 @@ import { DashboardLayout } from '../dashboard-layout';
 import { useAuth } from '@/hooks/useAuth';
 import { usePortfolioAssets } from '@/hooks/usePortfolioAssets';
 import { usePortfolioSummary } from '@/hooks/usePortfolioSummary';
-import { fetchRecentTransactions } from '@/lib/transactionsApi';
+import { fetchRecentTransactions, RecentTransaction } from '@/lib/transactionsApi';
 import { AssetsBalancesTable } from '@/components/assets/AssetsBalancesTable';
 import { AssetsDepositModal } from '@/components/assets/AssetsDepositModal';
 import { AssetsMetricCard } from '@/components/assets/AssetsMetricCard';
@@ -36,7 +36,7 @@ export default function AssetsPage() {
 
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentError, setRecentError] = useState<string | null>(null);
-  const [recentTxs, setRecentTxs] = useState<any[]>([]);
+  const [recentTxs, setRecentTxs] = useState<RecentTransaction[]>([]);
 
   useEffect(() => {
     if (!userId) return;
@@ -52,10 +52,10 @@ export default function AssetsPage() {
       } catch (err: any) {
         if (cancelled) return;
         setRecentError(String(err?.message || 'Failed to load recent transactions'));
-      } finally {
-        if (cancelled) return;
-        setRecentLoading(false);
       }
+
+      if (cancelled) return;
+      setRecentLoading(false);
     };
 
     run();
