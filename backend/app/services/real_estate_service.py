@@ -127,10 +127,36 @@ class RealEstateService:
                 else:
                     logger.error(f"RapidAPI Realty returned status {resp.status_code}")
                     return []
+=======
+        # Mapping frontend filters to RapidAPI body
+        if filters.priceRange and filters.priceRange != 'any':
+            price_map = {'under100k': {"max": 100000}, '100k-300k': {"min": 100000, "max": 300000}, '300k-500k': {"min": 300000, "max": 500000}, '500kplus': {"min": 500000}}
+            if filters.priceRange in price_map: body["list_price"] = price_map[filters.priceRange]
+        
+        if filters.property_type and filters.property_type != 'any':
+            type_map = {'Apartment': ["condo"], 'House': ["single_family", "multi_family"], 'Commercial': ["commercial"], 'Land': ["land"]}
+            if filters.property_type in type_map: body["prop_type"] = type_map[filters.property_type]
+
+        if filters.min_beds and filters.min_beds != 'any':
+            try: body["beds"] = {"min": int(filters.min_beds)}
+            except: pass
+
+        if filters.city: body["city"] = filters.city
+        elif filters.state: body["state_code"] = filters.state
+        else: body["postal_code"] = "90210"
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=body, headers=headers, timeout=15.0)
+                if resp.status_code == 200:
+                    return resp.json().get('data', {}).get('home_search', {}).get('results', [])
+                return []
+>>>>>>> Stashed changes
         except Exception as e:
             logger.error(f"RapidAPI Realty error: {e}")
             return []
 
+<<<<<<< Updated upstream
     # --- RealtyAPI.io ---
     @staticmethod
     async def fetch_realty_api(params: Dict[str, Any], db: AsyncSession) -> List[Dict[str, Any]]:
@@ -160,11 +186,33 @@ class RealEstateService:
             return []
 
     # --- Normalizers ---
+=======
+    # --- RealtyAPI.io (DISABLED FOR NOW) ---
+    @staticmethod
+    async def fetch_realty_api(filters: PropertyFilters, db: AsyncSession) -> List[Dict[str, Any]]:
+        """Temporarily commented out due to domain resolution issues"""
+        return []
+        # if not settings.REALTY_API_KEY: return []
+        # params = {"city": filters.city or "Miami", "limit": 20}
+        # headers = {"x-realtyapi-key": settings.REALTY_API_KEY}
+        # try:
+        #     async with httpx.AsyncClient() as client:
+        #         resp = await client.get(settings.REALTY_API_BASE_URL + "/properties", params=params, headers=headers, timeout=15.0)
+        #         if resp.status_code == 200:
+        #             data = resp.json()
+        #             return data.get('results', []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        #         return []
+        # except Exception as e:
+        #     logger.error(f"RealtyAPI.io error: {e}")
+        #     return []
+
+>>>>>>> Stashed changes
     @staticmethod
     def normalize_realty(raw: Dict[str, Any]) -> UnifiedProperty:
         addr = raw.get('location', {}).get('address', {})
         location = f"{addr.get('line', '')}, {addr.get('city', '')}, {addr.get('state_code', '')}"
         desc = raw.get('description', {})
+<<<<<<< Updated upstream
         
         # Image URL extraction
         photos = raw.get('primary_photo', {}).get('href')
@@ -188,10 +236,29 @@ class RealEstateService:
             estimated_monthly_rent=0,
             property_type=desc.get('type'),
             listed_at=raw.get('list_date')
+=======
+        photo = raw.get('primary_photo', {}).get('href')
+        
+        price = float(raw.get('list_price', 0)) if raw.get('list_price') else 0
+        # Calculate Legendary ROI: 18.5% annual yield + 10% projection
+        roi = 18.5
+        # Monthly rent based on ROI (price * 18.5% / 12)
+        monthly_rent = (price * (roi / 100.0)) / 12.0
+        
+        return UnifiedProperty(
+            id=f"ru_{raw.get('property_id', str(uuid.uuid4()))}", source="Realtor.com",
+            type="For Sale" if raw.get('status') == 'for_sale' else "For Rent",
+            title=location if location.strip(',') else "Premium Home", address=location, city=addr.get('city', ''), state=addr.get('state_code', ''),
+            price=price,
+            price_per_month=float(raw.get('list_price', 0)) if raw.get('status') == 'for_rent' else None,
+            bedrooms=desc.get('beds'), bathrooms=desc.get('baths'), area_sqft=desc.get('sqft'),
+            images=[photo] if photo else [], estimated_roi=roi, estimated_monthly_rent=monthly_rent, property_type=desc.get('type'), listed_at=raw.get('list_date')
+>>>>>>> Stashed changes
         )
 
     @staticmethod
     def normalize_realty_api(raw: Dict[str, Any]) -> UnifiedProperty:
+<<<<<<< Updated upstream
         return UnifiedProperty(
             id=f"ra_{raw.get('id', str(uuid.uuid4()))}",
             source="RealtyAPI",
@@ -275,10 +342,44 @@ class RealEstateService:
             for item in data:
                 if item.get('property_id') == raw_id:
                     return RealEstateService.normalize_realty(item)
+=======
+        price = float(raw.get('price', 0))
+        roi = 18.5
+        monthly_rent = (price * (roi / 100.0)) / 12.0
+        return UnifiedProperty(
+            id=f"ra_{raw.get('id', str(uuid.uuid4()))}", source="RealtyAPI", type="For Sale",
+            title=raw.get('address', 'Property'), address=raw.get('address', ''), city=raw.get('city', ''), state=raw.get('state', ''),
+            price=price, price_per_month=None, bedrooms=raw.get('bedrooms'), bathrooms=raw.get('bathrooms'),
+            area_sqft=raw.get('sqft'), images=raw.get('images', []) or [], estimated_roi=roi, estimated_monthly_rent=monthly_rent, property_type=raw.get('type'), listed_at=raw.get('listed_at')
+        )
+
+    @staticmethod
+    async def get_listings(filters: PropertyFilters, db: AsyncSession) -> ListingsResponse:
+        tasks = [RealEstateService.fetch_realty(filters, db), RealEstateService.fetch_realty_api(filters, db)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        ru_data = results[0] if not isinstance(results[0], Exception) else []
+        ra_data = results[1] if not isinstance(results[1], Exception) else []
+        unified = [RealEstateService.normalize_realty(i) for i in ru_data if isinstance(i, dict)]
+        unified += [RealEstateService.normalize_realty_api(i) for i in ra_data if isinstance(i, dict)]
+        unique = {}
+        for item in unified:
+            if item.address.lower() not in unique: unique[item.address.lower()] = item
+        sorted_list = sorted(unique.values(), key=lambda x: x.price if x.price > 0 else 999999999)
+        start = (filters.page - 1) * filters.limit
+        page_items = sorted_list[start : start + filters.limit]
+        return ListingsResponse(listings=page_items, total=len(unique), page=filters.page, has_more=(start + filters.limit) < len(unique))
+
+    @staticmethod
+    async def get_property_by_id(property_id: str, db: AsyncSession) -> Optional[UnifiedProperty]:
+        data = await RealEstateService.fetch_realty(PropertyFilters(page=1, limit=50), db)
+        for item in data:
+            if f"ru_{item.get('property_id')}" == property_id: return RealEstateService.normalize_realty(item)
+>>>>>>> Stashed changes
         return None
 
     @staticmethod
     async def invest_in_property(user_id: str, request: InvestRequest, db: AsyncSession, ably_client=None) -> Dict[str, Any]:
+<<<<<<< Updated upstream
         stmt = select(User).where(User.id == user_id)
         result = await db.execute(stmt)
         user = result.scalar_one_or_none()

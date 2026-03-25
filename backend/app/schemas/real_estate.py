@@ -10,11 +10,21 @@ class PropertyFilters(BaseModel):
     state: Optional[str] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
+<<<<<<< Updated upstream
     min_beds: Optional[int] = None
     min_baths: Optional[int] = None
     property_type: Optional[str] = None
     page: int = 1
     limit: int = 20
+=======
+    min_beds: Optional[Any] = None
+    min_baths: Optional[int] = None
+    property_type: Optional[str] = None
+    priceRange: Optional[str] = None
+    search: Optional[str] = None
+    page: int = 1
+    limit: int = 8
+>>>>>>> Stashed changes
 
 class UnifiedProperty(BaseModel):
     id: str

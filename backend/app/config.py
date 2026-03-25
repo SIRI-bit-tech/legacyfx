@@ -104,7 +104,11 @@ class Settings(BaseSettings):
     
     # RealtyAPI (realtyapi.io)
     REALTY_API_KEY: str = ""
+<<<<<<< Updated upstream
     REALTY_API_BASE_URL: str = "https://api.realtyapi.io/v1"
+=======
+    REALTY_API_BASE_URL: str = "https://realtyapi.io/v1"
+>>>>>>> Stashed changes
     
     REAL_ESTATE_CACHE_TTL: int = 3600
 
