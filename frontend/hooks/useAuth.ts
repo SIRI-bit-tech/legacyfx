@@ -29,6 +29,7 @@ export function useAuth() {
           email: response.email,
           username: response.username,
           kyc_status: response.status || 'PENDING',
+          account_balance: response.account_balance || 0,
           created_at: response.created_at || new Date().toISOString(),
         };
 
