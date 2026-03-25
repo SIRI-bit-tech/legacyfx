@@ -32,6 +32,7 @@ class RealEstateService:
     @staticmethod
     async def set_cache(db: AsyncSession, cache_key: str, data: Any):
         expires_at = datetime.utcnow() + timedelta(seconds=settings.REAL_ESTATE_CACHE_TTL)
+<<<<<<< Updated upstream
         
         stmt = select(RealEstateCache).where(RealEstateCache.cache_key == cache_key)
         result = await db.execute(stmt)
@@ -75,10 +76,31 @@ class RealEstateService:
         body = {
             "limit": 20,
             "offset": (filters.page - 1) * 20,
+=======
+        stmt = select(RealEstateCache).where(RealEstateCache.cache_key == cache_key)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        if existing:
+            existing.data = data
+            existing.expires_at = expires_at
+        else:
+            db.add(RealEstateCache(cache_key=cache_key, data=data, expires_at=expires_at))
+        await db.commit()
+
+    # --- Realty in US (RapidAPI) ---
+    @staticmethod
+    async def fetch_realty(filters: PropertyFilters, db: AsyncSession) -> List[Dict[str, Any]]:
+        if not settings.RAPIDAPI_KEY: return []
+        url = f"{settings.RAPIDAPI_REALTY_BASE_URL}/properties/v3/list"
+        headers = {"X-RapidAPI-Key": settings.RAPIDAPI_KEY, "X-RapidAPI-Host": settings.RAPIDAPI_REALTY_HOST, "Content-Type": "application/json"}
+        
+        body = {
+            "limit": 20, "offset": (filters.page - 1) * 20,
+>>>>>>> Stashed changes
             "status": ["for_sale"] if filters.type != 'rent' else ["for_rent"],
             "sort": {"direction": "desc", "field": "list_date"}
         }
         
+<<<<<<< Updated upstream
         # Add Location Filter
         if filters.city:
             body["city"] = filters.city
