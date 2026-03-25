@@ -433,11 +433,46 @@ class RealEstateService:
         result = await db.execute(select(RealEstateInvestment).where(RealEstateInvestment.user_id == user_id))
         investments = result.scalars().all()
         active = [i for i in investments if i.status == InvestmentStatus.ACTIVE]
+=======
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if not user or Decimal(str(user.account_balance)) < Decimal(str(request.amount)): raise Exception("Insufficient funds")
+        prop = await RealEstateService.get_property_by_id(request.property_id, db)
+        if not prop: raise Exception("Property not found")
+        user.account_balance -= float(request.amount)
+        inv = RealEstateInvestment(user_id=user_id, external_property_id=request.property_id, property_snapshot=prop.dict(), tokens_owned=request.tokens, amount_invested=Decimal(str(request.amount)), current_value=Decimal(str(request.amount)), monthly_income=Decimal(str(prop.estimated_monthly_rent or 0)) * Decimal(str(request.tokens / 1000)), roi_percent=Decimal(str(prop.estimated_roi or 18.5)), status=InvestmentStatus.ACTIVE)
+        db.add(inv)
+        db.add(RealEstateTransaction(user_id=user_id, external_property_id=request.property_id, property_title=prop.title, type=RealEstateTransactionType.FRACTIONAL_INVESTMENT, amount=Decimal(str(request.amount)), tokens=request.tokens, status=TransactionStatus.COMPLETED, payment_source="platform_balance"))
+        await db.commit()
+        if ably_client: await ably_client.publish(f"funds:{user_id}", {"balance": float(user.account_balance)})
+        return {"id": inv.id, "status": inv.status, "amount_invested": float(inv.amount_invested)}
+
+    @staticmethod
+    async def exit_investment(investment_id: str, user_id: str, db: AsyncSession, ably_client=None) -> Dict[str, Any]:
+        inv = (await db.execute(select(RealEstateInvestment).where(RealEstateInvestment.id == investment_id, RealEstateInvestment.user_id == user_id, RealEstateInvestment.status == InvestmentStatus.ACTIVE))).scalar_one_or_none()
+        if not inv: raise Exception("Not found")
+        v = inv.current_value
+        inv.status = InvestmentStatus.EXITED
+        u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        u.account_balance += float(v)
+        db.add(RealEstateTransaction(user_id=user_id, external_property_id=inv.external_property_id, property_title=inv.property_snapshot.get('title', 'Prop'), type=RealEstateTransactionType.EXIT, amount=v, tokens=inv.tokens_owned, status=TransactionStatus.COMPLETED, payment_source="platform_balance"))
+        await db.commit()
+        if ably_client: await ably_client.publish(f"funds:{user_id}", {"balance": float(u.account_balance)})
+        return {"success": True}
+
+    @staticmethod
+    async def get_portfolio(user_id: str, db: AsyncSession) -> Dict[str, Any]:
+        invs = (await db.execute(select(RealEstateInvestment).where(RealEstateInvestment.user_id == user_id))).scalars().all()
+        active = [i for i in invs if i.status == InvestmentStatus.ACTIVE]
+>>>>>>> Stashed changes
         total_v = sum(i.current_value for i in active)
         monthly_i = sum(i.monthly_income for i in active)
         total_inv = sum(i.amount_invested for i in active)
         avg_r = sum(i.roi_percent * (i.amount_invested / total_inv) for i in active) if total_inv > 0 else 0
         return {
             "total_value": float(total_v), "active_count": len(active), "monthly_income": float(monthly_i), "avg_roi": float(avg_r),
+<<<<<<< Updated upstream
             "investments": [{"id": i.id, "title": i.property_snapshot.get('title', 'Prop'), "location": f"{i.property_snapshot.get('city', '')}, {i.property_snapshot.get('state', '')}", "amount_invested": float(i.amount_invested), "current_value": float(i.current_value), "monthly_income": float(i.monthly_income), "roi": float(i.roi_percent), "status": i.status, "tokens": i.tokens_owned, "invested_at": i.invested_at} for i in investments]
+=======
+            "investments": [{"id": i.id, "title": i.property_snapshot.get('title', 'Prop'), "location": f"{i.property_snapshot.get('city', '')}, {i.property_snapshot.get('state', '')}", "amount_invested": float(i.amount_invested), "current_value": float(i.current_value), "monthly_income": float(i.monthly_income), "roi": float(i.roi_percent), "status": i.status, "tokens": i.tokens_owned, "invested_at": i.invested_at} for i in invs]
+>>>>>>> Stashed changes
         }
