@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 import { useState, useEffect, useCallback } from 'react';
+=======
+import { useState, useEffect, useCallback, useRef } from 'react';
+>>>>>>> Stashed changes
 import { realEstateApi } from '@/services/real-estate/api';
 
 export function useRealEstateListings(initialFilters: any = {}) {
@@ -9,7 +13,10 @@ export function useRealEstateListings(initialFilters: any = {}) {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   
+<<<<<<< Updated upstream
   // Set explicit defaults for filters to ensure select boxes have a value
+=======
+>>>>>>> Stashed changes
   const [filters, setFilters] = useState({ 
     type: 'all', 
     priceRange: 'any',
@@ -21,12 +28,21 @@ export function useRealEstateListings(initialFilters: any = {}) {
     limit: 8 
   });
 
+<<<<<<< Updated upstream
   const fetchListings = useCallback(async (pageNum: number) => {
+=======
+  // Fetch logic
+  const fetchListings = useCallback(async (pageNum: number, currentFilters: any) => {
+>>>>>>> Stashed changes
     setLoading(true);
     setError(null);
     try {
       const res = await realEstateApi.getListings({
+<<<<<<< Updated upstream
         ...filters,
+=======
+        ...currentFilters,
+>>>>>>> Stashed changes
         page: pageNum,
         limit: 8
       });
@@ -40,10 +56,23 @@ export function useRealEstateListings(initialFilters: any = {}) {
     } finally {
       setLoading(false);
     }
+<<<<<<< Updated upstream
   }, [filters]);
 
   useEffect(() => {
     fetchListings(1);
+=======
+  }, []);
+
+  // Debounced Effect for live search (Location / Keyword)
+  useEffect(() => {
+    const isTextSearch = filters.city?.length > 0 || filters.search?.length > 0;
+    const timeout = setTimeout(() => {
+      fetchListings(1, filters);
+    }, isTextSearch ? 500 : 0); // 500ms debounce for typing, immediate for dropdowns
+
+    return () => clearTimeout(timeout);
+>>>>>>> Stashed changes
   }, [filters, fetchListings]);
 
   const updateFilters = (newFilters: any) => {
@@ -52,7 +81,11 @@ export function useRealEstateListings(initialFilters: any = {}) {
 
   const goToPage = (pageNum: number) => {
     if (!loading) {
+<<<<<<< Updated upstream
       fetchListings(pageNum);
+=======
+      fetchListings(pageNum, filters);
+>>>>>>> Stashed changes
     }
   };
 
@@ -66,6 +99,10 @@ export function useRealEstateListings(initialFilters: any = {}) {
     hasMore, 
     updateFilters, 
     goToPage, 
+<<<<<<< Updated upstream
     refresh: () => fetchListings(page) 
+=======
+    refresh: () => fetchListings(page, filters) 
+>>>>>>> Stashed changes
   };
 }
