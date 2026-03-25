@@ -10,13 +10,6 @@ class PropertyFilters(BaseModel):
     state: Optional[str] = None
     min_price: Optional[float] = None
     max_price: Optional[float] = None
-<<<<<<< Updated upstream
-    min_beds: Optional[int] = None
-    min_baths: Optional[int] = None
-    property_type: Optional[str] = None
-    page: int = 1
-    limit: int = 20
-=======
     min_beds: Optional[Any] = None
     min_baths: Optional[int] = None
     property_type: Optional[str] = None
@@ -24,7 +17,6 @@ class PropertyFilters(BaseModel):
     search: Optional[str] = None
     page: int = 1
     limit: int = 8
->>>>>>> Stashed changes
 
 class UnifiedProperty(BaseModel):
     id: str
@@ -52,9 +44,9 @@ class ListingsResponse(BaseModel):
     has_more: bool
 
 class InvestRequest(BaseModel):
-    property_id: str
-    amount: float
-    tokens: int
+    property_id: str = Field(..., min_length=1, description="ID of the property to invest in")
+    amount: float = Field(..., gt=0, description="Investment amount in USD, must be positive")
+    tokens: int = Field(..., gt=0, description="Number of tokens requested, must be positive")
 
 class InvestmentResponse(BaseModel):
     id: str
