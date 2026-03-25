@@ -1,34 +1,75 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 from datetime import datetime
+from uuid import UUID
+from decimal import Decimal
 
-class PropertyResponse(BaseModel):
+class PropertyFilters(BaseModel):
+    type: str = "all"
+    city: Optional[str] = None
+    state: Optional[str] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    min_beds: Optional[int] = None
+    min_baths: Optional[int] = None
+    property_type: Optional[str] = None
+    page: int = 1
+    limit: int = 20
+
+class UnifiedProperty(BaseModel):
     id: str
-    name: str
-    location: str
-    description: Optional[str]
-    value: float
-    annual_roi: float
-    tokens_issued: float
-    tokens_available: float
-    min_investment: float
-    image_url: Optional[str]
-    is_active: bool
+    source: str
+    type: str
+    title: str
+    address: str
+    city: str
+    state: str
+    price: float
+    price_per_month: Optional[float] = None
+    bedrooms: Optional[int] = None
+    bathrooms: Optional[float] = None
+    area_sqft: Optional[float] = None
+    images: List[str] = []
+    estimated_roi: Optional[float] = None
+    estimated_monthly_rent: Optional[float] = None
+    property_type: Optional[str] = None
+    listed_at: Optional[str] = None
 
-class InvestPropertyRequest(BaseModel):
+class ListingsResponse(BaseModel):
+    listings: List[UnifiedProperty]
+    total: int
+    page: int
+    has_more: bool
+
+class InvestRequest(BaseModel):
     property_id: str
-    tokens_to_purchase: float
+    amount: float
+    tokens: int
 
-class RealEstateInvestmentResponse(BaseModel):
+class InvestmentResponse(BaseModel):
     id: str
-    property_id: str
-    property_name: str
-    tokens_purchased: float
-    amount_invested: float
-    earnings: float
+    status: str
+    amount_invested: Decimal
+    tokens_owned: int
     created_at: datetime
 
-class EarningsResponse(BaseModel):
-    total_earnings: float
-    monthly_earnings: float
-    properties: List[RealEstateInvestmentResponse]
+class PortfolioResponse(BaseModel):
+    total_value: Decimal
+    active_count: int
+    monthly_income: Decimal
+    avg_roi: Decimal
+    investments: List[Dict[str, Any]]
+
+class TransactionResponse(BaseModel):
+    id: str
+    type: str
+    asset_name: str
+    amount: Decimal
+    status: str
+    created_at: datetime
+
+class PaginatedTransactions(BaseModel):
+    transactions: List[TransactionResponse]
+    total: int
+    page: int
+    limit: int
