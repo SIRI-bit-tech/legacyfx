@@ -10,6 +10,7 @@ export interface User {
   last_name?: string;
   profile_picture_url?: string;
   kyc_status: string;
+  account_balance?: number;
   created_at: string;
 }
 

@@ -40,7 +40,8 @@ from app.models.mining_stats import MiningStats
 from app.routes import (
     auth, users, trading, markets, deposits, funds,
     withdrawals, investments, mining, staking,
-    signals, subscriptions, admin, copy_trading, ably, transactions
+    signals, subscriptions, admin, copy_trading, ably, transactions,
+    real_estate
 )
 
 settings = get_settings()
@@ -135,6 +136,7 @@ app.include_router(subscriptions.router)
 app.include_router(copy_trading.router)
 app.include_router(admin.router)
 app.include_router(ably.router)
+app.include_router(real_estate.router)
 
 from fastapi.staticfiles import StaticFiles
 import os

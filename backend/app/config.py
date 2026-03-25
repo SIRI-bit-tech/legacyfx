@@ -97,6 +97,21 @@ class Settings(BaseSettings):
     UPLOADTHING_SECRET: str = ""
     UPLOADTHING_APP_ID: str = ""
 
+    # Real Estate
+    RAPIDAPI_KEY: str = ""
+    RAPIDAPI_REALTY_HOST: str = "realty-in-us.p.rapidapi.com"
+    RAPIDAPI_REALTY_BASE_URL: str = "https://realty-in-us.p.rapidapi.com"
+    
+    # RealtyAPI (realtyapi.io)
+    REALTY_API_KEY: str = ""
+<<<<<<< Updated upstream
+    REALTY_API_BASE_URL: str = "https://api.realtyapi.io/v1"
+=======
+    REALTY_API_BASE_URL: str = "https://realtyapi.io/v1"
+>>>>>>> Stashed changes
+    
+    REAL_ESTATE_CACHE_TTL: int = 3600
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
