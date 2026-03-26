@@ -48,12 +48,7 @@ def upgrade() -> None:
     if fk_name:
         op.drop_constraint(fk_name, table, type_='foreignkey')
 
-    # --- 2. Drop legacy columns if they exist ---
-    for col in ('property_id', 'tokens_purchased', 'earnings'):
-        if _column_exists(table, col):
-            op.drop_column(table, col)
-
-    # --- 3. Add new columns if they don't exist ---
+    # --- 2. Add new columns if they don't exist (with temporary defaults) ---
     new_columns = {
         'external_property_id': sa.Column('external_property_id', sa.String(100), nullable=False, server_default='unknown'),
         'property_snapshot': sa.Column('property_snapshot', sa.JSON(), nullable=False, server_default='{}'),
@@ -71,7 +66,23 @@ def upgrade() -> None:
         if not _column_exists(table, col_name):
             op.add_column(table, col_def)
 
-    # Remove temporary server_defaults after backfill
+    # --- 3. Backfill data from legacy columns before dropping them ---
+    if _column_exists(table, 'property_id'):
+        op.execute(f"UPDATE {table} SET external_property_id = property_id WHERE property_id IS NOT NULL")
+    
+    if _column_exists(table, 'tokens_purchased'):
+        op.execute(f"UPDATE {table} SET tokens_owned = CAST(tokens_purchased AS INTEGER)")
+
+    # Mapping earnings to both current_value and monthly_income (if earnings represents yield)
+    if _column_exists(table, 'earnings'):
+        op.execute(f"UPDATE {table} SET monthly_income = CAST(earnings AS NUMERIC) WHERE earnings IS NOT NULL")
+
+    # --- 4. Drop legacy columns now that data is safe ---
+    for col in ('property_id', 'tokens_purchased', 'earnings'):
+        if _column_exists(table, col):
+            op.drop_column(table, col)
+
+    # Remove temporary server_defaults
     op.alter_column(table, 'external_property_id', server_default=None)
     op.alter_column(table, 'property_snapshot', server_default=None)
 
@@ -121,19 +132,25 @@ def downgrade() -> None:
 
     table = 'real_estate_investments'
 
-    # Drop new columns
+    # 1. Re-add legacy columns as nullable first to avoid constraint violations
+    op.add_column(table, sa.Column('property_id', sa.String(), nullable=True))
+    op.add_column(table, sa.Column('tokens_purchased', sa.Float(), nullable=False, server_default='0'))
+    op.add_column(table, sa.Column('earnings', sa.Float(), nullable=True))
+
+    # 2. Backfill property_id from external_property_id before it's dropped
+    op.execute(f"UPDATE {table} SET property_id = external_property_id WHERE external_property_id IS NOT NULL")
+    
+    # 3. Drop new columns (including external_property_id)
     for col in ('updated_at', 'exited_at', 'invested_at', 'status', 'roi_percent',
                 'monthly_income', 'current_value', 'amount_invested', 'tokens_owned',
                 'property_snapshot', 'external_property_id'):
         if _column_exists(table, col):
             op.drop_column(table, col)
 
-    # Re-add legacy columns
-    op.add_column(table, sa.Column('property_id', sa.String(), nullable=False, server_default=''))
-    op.add_column(table, sa.Column('tokens_purchased', sa.Float(), nullable=False, server_default='0'))
-    op.add_column(table, sa.Column('earnings', sa.Float(), nullable=True))
+    # 4. Now set legacy property_id to NOT NULL and add the server_default
+    op.alter_column(table, 'property_id', nullable=False, server_default='')
 
-    # Re-create legacy FK
+    # 5. Re-create legacy FK
     op.create_foreign_key(
         'real_estate_investments_property_id_fkey',
         table, 'real_estate_properties', ['property_id'], ['id']

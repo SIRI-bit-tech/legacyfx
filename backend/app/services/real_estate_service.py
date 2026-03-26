@@ -30,6 +30,10 @@ class InsufficientFundsError(RealEstateError):
     """Raised when the user doesn't have enough balance."""
     pass
 
+class UserNotFoundError(RealEstateError):
+    """Raised when a specific user cannot be found."""
+    pass
+
 class PropertyNotFoundError(RealEstateError):
     """Raised when an external property is not found."""
     pass
@@ -177,41 +181,54 @@ class RealEstateService:
         )
 
     @staticmethod
+    async def _fetch_mixed_hubs(filters: PropertyFilters, db: AsyncSession) -> List[UnifiedProperty]:
+        """Helper to fetch from multiple state hubs when no location is specified."""
+        hubs = ["NY", "CA", "TX", "FL", "IL", "GA", "OH", "PA", "MI", "MO"]
+        hub_tasks = []
+        for state in hubs:
+            hub_filters = filters.model_copy()
+            hub_filters.state = state
+            # Fetch 20 from each to satisfy larger local pagination pools
+            hub_filters.limit = 20
+            hub_tasks.append(RealEstateService.fetch_realty(hub_filters, db))
+        
+        hub_tasks.append(RealEstateService.fetch_realty_api(filters, db))
+        all_results = await asyncio.gather(*hub_tasks, return_exceptions=True)
+        
+        unified = []
+        for i, res in enumerate(all_results):
+            if not isinstance(res, list):
+                continue
+            
+            # The last task in hub_tasks is fetch_realty_api
+            if i < len(all_results) - 1:
+                unified.extend([RealEstateService.normalize_realty(item) for item in res if isinstance(item, dict)])
+            else:
+                unified.extend([RealEstateService.normalize_realty_api(item) for item in res if isinstance(item, dict)])
+            
+        return unified
+
+    @staticmethod
+    async def _fetch_targeted(filters: PropertyFilters, db: AsyncSession) -> List[UnifiedProperty]:
+        """Helper to fetch results for a specific location search."""
+        tasks = [RealEstateService.fetch_realty(filters, db), RealEstateService.fetch_realty_api(filters, db)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        ru_data = results[0] if not isinstance(results[0], Exception) else []
+        ra_data = results[1] if not isinstance(results[1], Exception) else []
+        
+        unified = [RealEstateService.normalize_realty(i) for i in ru_data if isinstance(i, dict)]
+        unified += [RealEstateService.normalize_realty_api(i) for i in ra_data if isinstance(i, dict)]
+        return unified
+
+    @staticmethod
     async def get_listings(filters: PropertyFilters, db: AsyncSession) -> ListingsResponse:
-        # Check if the user has provided any specific location criteria
         has_location = bool(filters.city or filters.state or filters.search)
         
         if not has_location:
-            # Consistent Mixed Hub view for ALL pages if no location is specified.
-            # This prevents the "No properties found" error on page 2+.
-            hubs = ["NY", "CA", "TX", "FL", "IL", "GA", "OH", "PA", "MI", "MO"]
-            hub_tasks = []
-            for state in hubs:
-                hub_filters = filters.model_copy()
-                hub_filters.state = state
-                # In mixed mode, we fetch a decent amount from each to allow pagination
-                hub_filters.limit = 20 
-                hub_tasks.append(RealEstateService.fetch_realty(hub_filters, db))
-            
-            # Fetch from optional second source
-            hub_tasks.append(RealEstateService.fetch_realty_api(filters, db))
-            
-            all_results = await asyncio.gather(*hub_tasks, return_exceptions=True)
-            
-            unified = []
-            for res in all_results:
-                if isinstance(res, list):
-                    unified.extend([RealEstateService.normalize_realty(i) for i in res if isinstance(i, dict)])
+            unified = await RealEstateService._fetch_mixed_hubs(filters, db)
         else:
-            # Standard single-location or targeted search
-            tasks = [RealEstateService.fetch_realty(filters, db), RealEstateService.fetch_realty_api(filters, db)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            ru_data = results[0] if not isinstance(results[0], Exception) else []
-            ra_data = results[1] if not isinstance(results[1], Exception) else []
-            
-            unified = [RealEstateService.normalize_realty(i) for i in ru_data if isinstance(i, dict)]
-            unified += [RealEstateService.normalize_realty_api(i) for i in ra_data if isinstance(i, dict)]
+            unified = await RealEstateService._fetch_targeted(filters, db)
         
         # Deduplicate by address and sort by price
         unique = {}
@@ -259,8 +276,8 @@ class RealEstateService:
 
     @staticmethod
     async def get_property_by_id(property_id: str, db: AsyncSession) -> Optional[UnifiedProperty]:
-        # Extract the raw API property_id from our prefixed id (e.g. "ru_12345" -> "12345")
-        raw_id = property_id.removeprefix("ru_")
+        # Extract the raw API property_id from our prefixed id (e.g. "ru_12345" -> "12345" or "ra_123" -> "123")
+        raw_id = property_id.split("_", 1)[1] if "_" in property_id else property_id
 
         # Strategy 1: Direct detail endpoint lookup (most reliable)
         detail = await RealEstateService.fetch_property_detail(raw_id)
@@ -360,6 +377,11 @@ class RealEstateService:
             u = (await db.execute(
                 select(User).where(User.id == user_id).with_for_update()
             )).scalar_one_or_none()
+            
+            if not u:
+                logger.error(f"User {user_id} not found during exit_investment transaction")
+                raise UserNotFoundError(f"User {user_id} not found")
+            
             u.account_balance += float(v)
 
             db.add(RealEstateTransaction(
