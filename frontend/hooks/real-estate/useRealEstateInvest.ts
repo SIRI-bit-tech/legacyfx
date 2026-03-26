@@ -1,12 +1,16 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { realEstateApi } from '@/services/real-estate/api';
 
 export function useRealEstateInvest() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const invest = useCallback(async (propertyId: string, amount: number, tokens: number) => {
+    if (isSubmittingRef.current) return false;
+    isSubmittingRef.current = true;
+
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -19,10 +23,14 @@ export function useRealEstateInvest() {
       return false;
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   }, []);
 
   const exit = useCallback(async (investmentId: string) => {
+    if (isSubmittingRef.current) return false;
+    isSubmittingRef.current = true;
+
     setLoading(true);
     setError(null);
     try {
@@ -33,6 +41,7 @@ export function useRealEstateInvest() {
       return false;
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   }, []);
 

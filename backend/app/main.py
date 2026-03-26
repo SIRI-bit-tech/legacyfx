@@ -25,7 +25,7 @@ from app.models.investment import (
     InvestmentProduct, InvestmentPosition, 
     CopyTrader, CopySession
 )
-from app.models.real_estate import RealEstateProperty, RealEstateInvestment
+from app.models.real_estate import RealEstateProperty, RealEstateInvestment, RealEstateTransaction, RealEstateCache
 from app.models.mining import MiningPlan, MiningSubscription
 from app.models.signals import SignalSource, TradingSignal
 from app.models.signal import Signal
