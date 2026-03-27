@@ -26,11 +26,35 @@ export function useRealEstateListings(initialFilters: any = {}) {
     setLoading(true);
     setError(null);
     try {
-      const res = await realEstateApi.getListings({
-        ...currentFilters,
+      // Map priceRange string to numeric min/max for the API
+      let minPrice: number | undefined;
+      let maxPrice: number | undefined;
+
+      if (currentFilters.priceRange === 'under100k') {
+        maxPrice = 100000;
+      } else if (currentFilters.priceRange === '100k-300k') {
+        minPrice = 100000;
+        maxPrice = 300000;
+      } else if (currentFilters.priceRange === '300k-500k') {
+        minPrice = 300000;
+        maxPrice = 500000;
+      } else if (currentFilters.priceRange === '500kplus') {
+        minPrice = 500000;
+      }
+
+      const apiParams: any = {
+        type: currentFilters.type === 'all' ? undefined : currentFilters.type,
+        city: currentFilters.city || undefined,
+        property_type: currentFilters.property_type === 'any' ? undefined : currentFilters.property_type,
+        min_beds: currentFilters.min_beds === 'any' ? undefined : Number.parseInt(currentFilters.min_beds),
+        min_price: minPrice,
+        max_price: maxPrice,
+        search: currentFilters.search || undefined,
         page: pageNum,
         limit: 8
-      });
+      };
+
+      const res = await realEstateApi.getListings(apiParams);
 
       setListings(res.listings || []);
       setHasMore(res.has_more);

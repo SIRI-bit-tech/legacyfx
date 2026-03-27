@@ -5,13 +5,16 @@ export const realEstateApi = {
     const params = new URLSearchParams();
     if (filters.search) params.append('search', filters.search);
     if (filters.type) params.append('type', filters.type);
-    if (filters.minPrice) params.append('min_price', filters.minPrice.toString());
-    if (filters.maxPrice) params.append('max_price', filters.maxPrice.toString());
+    if (filters.city) params.append('city', filters.city);
+    if (filters.property_type) params.append('property_type', filters.property_type);
+    if (filters.min_beds) params.append('min_beds', filters.min_beds.toString());
+    if (filters.min_price) params.append('min_price', filters.min_price.toString());
+    if (filters.max_price) params.append('max_price', filters.max_price.toString());
     if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
     
     const queryString = params.toString();
-    const endpoint = `/real-estate/listings${queryString ? `?${queryString}` : ''}`;
+    const endpoint = queryString ? `/real-estate/listings?${queryString}` : '/real-estate/listings';
     return api.get(endpoint);
   },
   

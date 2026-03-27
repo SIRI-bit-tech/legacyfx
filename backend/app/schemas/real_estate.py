@@ -45,7 +45,7 @@ class ListingsResponse(BaseModel):
 
 class InvestRequest(BaseModel):
     property_id: str = Field(..., min_length=1, description="ID of the property to invest in")
-    amount: float = Field(..., gt=0, description="Investment amount in USD, must be positive")
+    amount: Decimal = Field(..., gt=0, description="Investment amount in USD, must be positive")
     tokens: int = Field(..., gt=0, description="Number of tokens requested, must be positive")
 
 class InvestmentResponse(BaseModel):
