@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Annotated
 from datetime import datetime
 from uuid import UUID
 from decimal import Decimal
@@ -45,7 +45,7 @@ class ListingsResponse(BaseModel):
 
 class InvestRequest(BaseModel):
     property_id: str = Field(..., min_length=1, description="ID of the property to invest in")
-    amount: Decimal = Field(..., gt=0, description="Investment amount in USD, must be positive")
+    amount: Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=8)] = Field(..., description="Investment amount in USD, must be positive and within 18 digits total, 8 decimals")
     tokens: int = Field(..., gt=0, description="Number of tokens requested, must be positive")
 
 class InvestmentResponse(BaseModel):
