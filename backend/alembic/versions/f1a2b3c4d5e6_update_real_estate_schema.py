@@ -68,6 +68,20 @@ def upgrade() -> None:
 
     # --- 3. Backfill data from legacy columns before dropping them ---
     if _column_exists(table, 'property_id'):
+        # 3a. Capture property title/location into the snapshot before we lose the link
+        if _column_exists('real_estate_properties', 'title'):
+            op.execute(f"""
+                UPDATE {table}
+                SET property_snapshot = json_build_object(
+                    'title', p.title,
+                    'location', p.location
+                )
+                FROM real_estate_properties p
+                WHERE {table}.property_id = p.id
+                AND ({table}.property_snapshot = '{{}}'::jsonb OR {table}.property_snapshot IS NULL)
+            """)
+
+        # 3b. Backfill identifiers
         op.execute(f"UPDATE {table} SET external_property_id = property_id WHERE property_id IS NOT NULL")
     
     if _column_exists(table, 'tokens_purchased'):
@@ -137,8 +151,10 @@ def downgrade() -> None:
     op.add_column(table, sa.Column('tokens_purchased', sa.Float(), nullable=False, server_default='0'))
     op.add_column(table, sa.Column('earnings', sa.Float(), nullable=True))
 
-    # 2. Backfill property_id from external_property_id before it's dropped
-    op.execute(f"UPDATE {table} SET property_id = external_property_id WHERE external_property_id IS NOT NULL")
+    # 2. Backfill property_id from external_property_id before it's dropped.
+    # We must strip any "ru_" or "ra_" prefixes written by the new service logic 
+    # so the restored IDs are once again compatible with the legacy properties table.
+    op.execute(f"UPDATE {table} SET property_id = REGEXP_REPLACE(external_property_id, '^(ru_|ra_)', '') WHERE external_property_id IS NOT NULL")
     
     # 3. Drop new columns (including external_property_id)
     for col in ('updated_at', 'exited_at', 'invested_at', 'status', 'roi_percent',

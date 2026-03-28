@@ -5,7 +5,7 @@ from app.database import get_db
 from app.routes.auth import get_current_user
 from app.models.user import User
 from app.schemas.real_estate import PropertyFilters, ListingsResponse, UnifiedProperty, InvestRequest, InvestmentResponse, PortfolioResponse, PaginatedTransactions
-from app.services.real_estate_service import RealEstateService, InvestmentNotFoundError, InsufficientFundsError, PropertyNotFoundError
+from app.services.real_estate_service import RealEstateService, InvestmentNotFoundError, InsufficientFundsError, PropertyNotFoundError, UserNotFoundError
 from app.services.ably_service import ably_service
 import uuid
 
@@ -76,7 +76,7 @@ async def exit_investment(
         return await RealEstateService.exit_investment(
             investment_id, str(current_user.id), db, ably_service
         )
-    except InvestmentNotFoundError as e:
+    except (InvestmentNotFoundError, UserNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

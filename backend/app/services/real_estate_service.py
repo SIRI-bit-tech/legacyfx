@@ -83,7 +83,14 @@ class RealEstateService:
         }
         
         # Pull from class-level mappings
-        if filters.priceRange in RealEstateService.PRICE_MAP:
+        # Map price filters: precedence to specific min/max over legacy priceRange
+        if filters.min_price or filters.max_price:
+            body["list_price"] = {}
+            if filters.min_price:
+                body["list_price"]["min"] = int(filters.min_price)
+            if filters.max_price:
+                body["list_price"]["max"] = int(filters.max_price)
+        elif filters.priceRange in RealEstateService.PRICE_MAP:
             body["list_price"] = RealEstateService.PRICE_MAP[filters.priceRange]
         if filters.property_type in RealEstateService.TYPE_MAP:
             body["prop_type"] = RealEstateService.TYPE_MAP[filters.property_type]
@@ -184,15 +191,25 @@ class RealEstateService:
     async def _fetch_mixed_hubs(filters: PropertyFilters, db: AsyncSession) -> List[UnifiedProperty]:
         """Helper to fetch from multiple state hubs when no location is specified."""
         hubs = ["NY", "CA", "TX", "FL", "IL", "GA", "OH", "PA", "MI", "MO"]
+        
+        # Calculate a large enough pool for accurate cross-hub sorting/dedupe
+        # Fetching everything up to the current page's offset from each source
+        limit = filters.limit if filters.limit else 8
+        pool_size = filters.page * limit
+        
         hub_tasks = []
         for state in hubs:
             hub_filters = filters.model_copy()
             hub_filters.state = state
-            # Fetch 20 from each to satisfy larger local pagination pools
-            hub_filters.limit = 20
+            hub_filters.page = 1
+            hub_filters.limit = pool_size  # Ensure each source provides enough for a full page-pool
             hub_tasks.append(RealEstateService.fetch_realty(hub_filters, db))
         
-        hub_tasks.append(RealEstateService.fetch_realty_api(filters, db))
+        api_filters = filters.model_copy()
+        api_filters.page = 1
+        api_filters.limit = pool_size
+        hub_tasks.append(RealEstateService.fetch_realty_api(api_filters, db))
+        
         all_results = await asyncio.gather(*hub_tasks, return_exceptions=True)
         
         unified = []
@@ -211,7 +228,18 @@ class RealEstateService:
     @staticmethod
     async def _fetch_targeted(filters: PropertyFilters, db: AsyncSession) -> List[UnifiedProperty]:
         """Helper to fetch results for a specific location search."""
-        tasks = [RealEstateService.fetch_realty(filters, db), RealEstateService.fetch_realty_api(filters, db)]
+        # Ensure we have a pool of results from page 1 to the current needed end
+        limit = filters.limit if filters.limit else 8
+        pool_size = filters.page * limit
+        
+        pool_filters = filters.model_copy()
+        pool_filters.page = 1
+        pool_filters.limit = pool_size
+
+        tasks = [
+            RealEstateService.fetch_realty(pool_filters, db), 
+            RealEstateService.fetch_realty_api(pool_filters, db)
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         ru_data = results[0] if not isinstance(results[0], Exception) else []
