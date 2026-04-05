@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
 
     # Better Auth
+    _DEFAULT_FRONTEND: str = "http://localhost:3000"
     BETTER_AUTH_SECRET: str = "default_secret_min_32_chars_long_here"
-    BETTER_AUTH_BASE_URL: str = "http://localhost:3000"
+    BETTER_AUTH_BASE_URL: str = _DEFAULT_FRONTEND
 
     # API Keys
     COINGECKO_API_KEY: str = ""
@@ -58,8 +59,8 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "noreply@legacyfx.com"
 
     # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"
-    CORS_ORIGINS: str = "http://localhost:3000"
+    FRONTEND_URL: str = _DEFAULT_FRONTEND
+    CORS_ORIGINS: str = _DEFAULT_FRONTEND
 
     # Environment
     ENVIRONMENT: str = "development"
@@ -107,6 +108,19 @@ class Settings(BaseSettings):
     REALTY_API_BASE_URL: str = "https://realtyapi.io/v1"
     
     REAL_ESTATE_CACHE_TTL: int = 3600
+
+    # Alpha Vantage API
+    ALPHA_VANTAGE_API_KEY: str = ""
+    ALPHA_VANTAGE_BASE_URL: str = "https://www.alphavantage.co/query"
+    
+    # Signal generation schedule (minutes)
+    SIGNAL_REFRESH_INTERVAL: int = 15  # Regenerate every 15 min
+    SIGNALS_CACHE_TTL: int = 900        # 15 minutes cache for indicators
+
+    # Symbols to generate signals for
+    SIGNALS_CRYPTO: str = "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT"
+    SIGNALS_FOREX: str = "EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD"
+    SIGNALS_STOCKS: str = "AAPL,TSLA,MSFT,AMZN,GOOGL,META,NVDA,NFLX"
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -52,9 +52,12 @@ export default function TradePage() {
 
   const initialSymbol = normalizeAppSymbol(querySymbol || '') || 'BTCUSDT';
   const [symbol, setSymbol] = useState<string>(initialSymbol);
-  const [side, setSide] = useState('BUY');
-  const [orderType, setOrderType] = useState('MARKET');
+  const [side, setSide] = useState(searchParams.get('type')?.toUpperCase() || 'BUY');
+  const [orderType, setOrderType] = useState(searchParams.get('entry') ? 'LIMIT' : 'MARKET');
   const [amount, setAmount] = useState('');
+  const [price, setPrice] = useState(searchParams.get('entry') || '');
+  const [tp, setTp] = useState(searchParams.get('tp') || '');
+  const [sl, setSl] = useState(searchParams.get('sl') || '');
   const [activeTab, setActiveTab] = useState(0);
 
   const tvWidgetRef = useRef<any>(null);
@@ -65,9 +68,23 @@ export default function TradePage() {
   // Pre-select the asset when coming from Assets table actions.
   useEffect(() => {
     const next = normalizeAppSymbol(querySymbol || '');
-    if (!next) return;
-    setSymbol((prev) => (prev === next ? prev : next));
-  }, [querySymbol]);
+    if (next) setSymbol((prev) => (prev === next ? prev : next));
+    
+    const queryType = searchParams.get('type');
+    if (queryType) setSide(queryType.toUpperCase());
+    
+    const queryEntry = searchParams.get('entry');
+    if (queryEntry) {
+      setPrice(queryEntry);
+      setOrderType('LIMIT');
+    }
+    
+    const queryTp = searchParams.get('tp');
+    if (queryTp) setTp(queryTp);
+    
+    const querySl = searchParams.get('sl');
+    if (querySl) setSl(querySl);
+  }, [querySymbol, searchParams]);
 
   // STEP 2 — load TradingView script once, resolve when ready
   const ensureTvScript = useCallback((): Promise<void> => {

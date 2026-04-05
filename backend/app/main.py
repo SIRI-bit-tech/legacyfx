@@ -27,8 +27,7 @@ from app.models.investment import (
 )
 from app.models.real_estate import RealEstateProperty, RealEstateInvestment, RealEstateTransaction, RealEstateCache
 from app.models.mining import MiningPlan, MiningSubscription
-from app.models.signals import SignalSource, TradingSignal
-from app.models.signal import Signal
+from app.models.signals import Signal, SignalHistory, CopiedSignal, SignalAccuracy, SignalCache
 from app.models.notification import Notification
 from app.models.security import LoginHistory
 from app.models.referral import Referral
