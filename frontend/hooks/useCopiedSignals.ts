@@ -35,10 +35,17 @@ export const useCopiedSignals = () => {
 
   const copySignal = async (signalId: string, openTradeNow: boolean = false) => {
     try {
-      const result = await api.post(`/api/signals/${signalId}/copy`, { open_trade_now: openTradeNow });
+      const result: any = await api.post(`/api/signals/${signalId}/copy`, { open_trade_now: openTradeNow });
       if (result.success) {
         if (openTradeNow && result.trade_url) {
-          router.push(result.trade_url);
+          let finalUrl = result.trade_url;
+          const signalType = result.copied_signal?.signal_type;
+          if (signalType) {
+            const normalizedType = signalType.toUpperCase();
+            const separator = finalUrl.includes('?') ? '&' : '?';
+            finalUrl += `${separator}type=${normalizedType}`;
+          }
+          router.push(finalUrl);
         } else {
           await fetchCopiedSignals();
         }

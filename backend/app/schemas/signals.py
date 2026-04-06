@@ -46,11 +46,11 @@ class SignalHistoryResponse(BaseModel):
     asset_type: AssetType
     signal_type: SignalType
     entry_price: Decimal
-    take_profit: Decimal
-    stop_loss: Decimal
+    take_profit: Optional[Decimal] = None
+    stop_loss: Optional[Decimal] = None
     exit_price: Optional[Decimal] = None
     result_percent: Optional[Decimal] = None
-    outcome: SignalOutcome
+    outcome: Optional[SignalOutcome] = None
     timeframe: str
     generated_at: datetime
     closed_at: Optional[datetime] = None

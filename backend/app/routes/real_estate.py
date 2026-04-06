@@ -9,7 +9,7 @@ from app.services.real_estate_service import RealEstateService, InvestmentNotFou
 from app.services.ably_service import ably_service
 import uuid
 
-router = APIRouter(prefix="/api/v1/real-estate", tags=["Real Estate"])
+router = APIRouter(prefix="/api/real-estate", tags=["Real Estate"])
 
 @router.get("/listings", response_model=ListingsResponse)
 async def get_listings(
@@ -22,8 +22,8 @@ async def get_listings(
     min_beds: Optional[int] = None,
     min_baths: Optional[int] = None,
     property_type: Optional[str] = None,
-    page: int = 1,
-    limit: int = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=50)] = 8,
 ):
     filters = PropertyFilters(
         type=type, city=city, state=state, 
@@ -85,8 +85,8 @@ async def exit_investment(
 async def get_transactions(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    page: int = 1,
-    limit: int = 10,
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
 ):
     txs, total = await RealEstateService.get_transactions(str(current_user.id), page, limit, db)
     return {

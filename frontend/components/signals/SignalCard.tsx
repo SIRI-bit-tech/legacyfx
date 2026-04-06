@@ -1,13 +1,12 @@
 import React from 'react';
 import { Signal } from '@/hooks/useSignals';
-import { useCopiedSignals } from '@/hooks/useCopiedSignals';
 
 interface SignalCardProps {
   signal: Signal;
+  copySignal: (signalId: string, openTradeNow?: boolean) => Promise<{ success: boolean; error?: string }>;
 }
 
-export const SignalCard: React.FC<SignalCardProps> = ({ signal }) => {
-  const { copySignal } = useCopiedSignals();
+export const SignalCard: React.FC<SignalCardProps> = ({ signal, copySignal }) => {
   const isBuy = signal.signal_type === 'buy';
 
   const getStrengthColor = (strength: string) => {

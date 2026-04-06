@@ -21,7 +21,7 @@ class SignalsService:
         stmt = select(SignalCache).where(
             and_(
                 SignalCache.cache_key == key,
-                SignalCache.expires_at > datetime.utcnow()
+                SignalCache.expires_at > datetime.now(timezone.utc)
             )
         )
         result = await db.execute(stmt)
@@ -30,10 +30,10 @@ class SignalsService:
 
     @staticmethod
     async def _set_cache(key: str, data: Dict[str, Any], ttl_seconds: int, db: AsyncSession):
-        expires_at = datetime.utcnow() + timedelta(seconds=ttl_seconds)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
         stmt = update(SignalCache).where(SignalCache.cache_key == key).values(
             data=data,
-            fetched_at=datetime.utcnow(),
+            fetched_at=datetime.now(timezone.utc),
             expires_at=expires_at
         )
         res = await db.execute(stmt)
@@ -258,11 +258,10 @@ class SignalsService:
         existing = existing_result.scalar_one_or_none()
         if existing:
             existing.is_active = False
-            await db.commit()
 
         # Create new signal
         signal_id = str(uuid.uuid4())
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         new_signal = Signal(
             id=signal_id,
@@ -358,7 +357,12 @@ class SignalsService:
             func.sum(SignalAccuracy.winning_signals)
         )
         acc_res = await db.execute(acc_stmt)
-        total, wins = acc_res.first() or (0, 0)
+        acc_row = acc_res.first()
+        if acc_row:
+            total = acc_row[0] or 0
+            wins = acc_row[1] or 0
+        else:
+            total, wins = 0, 0
         
         overall_accuracy = (Decimal(str(wins)) / Decimal(str(total)) * 100) if total and total > 0 else Decimal("0")
         
