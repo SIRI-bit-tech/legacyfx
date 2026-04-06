@@ -9,7 +9,7 @@ from app.services.real_estate_service import RealEstateService, InvestmentNotFou
 from app.services.ably_service import ably_service
 import uuid
 
-router = APIRouter(prefix="/api/real-estate", tags=["Real Estate"])
+router = APIRouter(prefix="/api/v1/real-estate", tags=["Real Estate"])
 
 @router.get("/listings", response_model=ListingsResponse)
 async def get_listings(

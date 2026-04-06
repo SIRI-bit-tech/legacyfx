@@ -77,14 +77,14 @@ function VerifyEmailContent() {
     setLoading(true);
 
     try {
-      const response = await api.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, {
+      const response: any = await api.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, {
         email,
         code: fullCode,
       });
       
       // Store token if returned and update API client state
       if (response.access_token) {
-        api.setToken(response.access_token);
+        (api as any).setToken(response.access_token);
       }
 
       setSuccess(true);

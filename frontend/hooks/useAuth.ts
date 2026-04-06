@@ -37,9 +37,9 @@ export function useAuth() {
         setIsAuthenticated(true);
       } catch (err: any) {
         console.error('Auth check error:', err);
-        console.log('Session response status:', err.status);
-        console.log('Session response text:', await err.text());
-        api.setToken(null);
+        console.log('Session response status:', err.response?.status);
+        console.log('Session response data:', err.response?.data);
+        (api as any).setToken(null);
         setUser(null);
         setIsAuthenticated(false);
       } finally {
@@ -56,7 +56,7 @@ export function useAuth() {
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      api.setToken(null);
+      (api as any).setToken(null);
       setUser(null);
       setIsAuthenticated(false);
       window.location.href = '/login';
