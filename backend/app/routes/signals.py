@@ -2,15 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_
 from typing import List, Optional, Dict, Any, Annotated
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models.signals import Signal, SignalHistory, CopiedSignal, AssetType, SignalType, SignalStrength, SignalOutcome
+from app.models.admin import Admin
 from app.utils.auth import get_current_user
+from app.utils.admin_auth import get_current_admin
 from app.schemas.signals import SignalResponse, SignalStats, SignalHistoryResponse, CopiedSignalResponse, CopySignalRequest
 from app.services.signals_service import SignalsService
 
-router = APIRouter(prefix="/api/v1/signals", tags=["Signals"])
+router = APIRouter(prefix="/api/signals", tags=["Signals"])
+
+# Simple lock to prevent multiple refreshes
+_is_refreshing = False
 
 @router.get("/", response_model=Dict[str, Any])
 async def get_signals(
@@ -37,29 +42,8 @@ async def get_signals(
     end = start + limit
     paginated = signals[start:end]
     
-    # Convert SQLAlchemy models to dicts for JSON serialization
-    signals_data = []
-    for s in paginated:
-        signals_data.append({
-            "id": s.id,
-            "symbol": s.symbol,
-            "asset_type": s.asset_type.value if hasattr(s.asset_type, 'value') else s.asset_type,
-            "signal_type": s.signal_type.value if hasattr(s.signal_type, 'value') else s.signal_type,
-            "strength": s.strength.value if hasattr(s.strength, 'value') else s.strength,
-            "timeframe": s.timeframe,
-            "entry_price": float(s.entry_price) if s.entry_price else 0,
-            "take_profit": float(s.take_profit) if s.take_profit else 0,
-            "stop_loss": float(s.stop_loss) if s.stop_loss else 0,
-            "rsi": float(s.rsi) if s.rsi else None,
-            "macd": s.macd,
-            "ema_signal": s.ema_signal,
-            "bb_signal": s.bb_signal,
-            "sma_signal": s.sma_signal,
-            "is_active": s.is_active,
-            "generated_at": s.generated_at.isoformat() if s.generated_at else None,
-            "expires_at": s.expires_at.isoformat() if s.expires_at else None,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-        })
+    # Convert SQLAlchemy models to Pydantic responses
+    signals_data = [SignalResponse.model_validate(s) for s in paginated]
     
     return {
         "signals": signals_data,
@@ -70,15 +54,27 @@ async def get_signals(
 
 @router.post("/refresh", response_model=Dict[str, Any])
 async def refresh_signals(
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_admin: Annotated[Admin, Depends(get_current_admin)]
 ):
-    """Manually refresh signals from Twelve Data API. Saves results to DB."""
-    result = await SignalsService.refresh_all_signals(db)
-    return {
-        "success": True,
-        "message": f"Signal refresh complete: {result['created']} created, {result['skipped']} skipped, {result['errors']} errors",
-        **result
-    }
+    """Manually refresh signals from Twelve Data API. Saves results to DB. Admin only."""
+    global _is_refreshing
+    if _is_refreshing:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="A refresh is already in progress. Please wait."
+        )
+    
+    try:
+        _is_refreshing = True
+        result = await SignalsService.refresh_all_signals(db)
+        return {
+            "success": True,
+            "message": f"Signal refresh complete: {result['created']} created, {result['skipped']} skipped, {result['errors']} errors",
+            **result
+        }
+    finally:
+        _is_refreshing = False
 
 @router.get("/stats", response_model=SignalStats)
 async def get_signal_stats(db: Annotated[AsyncSession, Depends(get_db)]):
@@ -96,14 +92,46 @@ async def get_signal_history(
 ):
     """Get paginated signal history."""
     stmt = select(SignalHistory).order_by(SignalHistory.generated_at.desc())
-    if asset_type: stmt = stmt.where(SignalHistory.asset_type == asset_type)
-    if signal_type: stmt = stmt.where(SignalHistory.signal_type == signal_type)
-    if outcome: stmt = stmt.where(SignalHistory.outcome == outcome)
+    if asset_type:
+        stmt = stmt.where(SignalHistory.asset_type == asset_type)
+    if signal_type:
+        stmt = stmt.where(SignalHistory.signal_type == signal_type)
+    if outcome:
+        stmt = stmt.where(SignalHistory.outcome == outcome)
     
     start = (page - 1) * limit
     stmt = stmt.offset(start).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+@router.get("/copied", response_model=List[CopiedSignalResponse])
+async def get_user_copied_signals(
+    current_user: Annotated[Any, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Get all signals copied by the current user."""
+    stmt = select(CopiedSignal).where(CopiedSignal.user_id == current_user.id).order_by(CopiedSignal.copied_at.desc())
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+@router.delete("/copied/{copied_signal_id}", responses={404: {"description": "Copied signal not found"}})
+async def cancel_copied_signal(
+    copied_signal_id: str,
+    current_user: Annotated[Any, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    stmt = update(CopiedSignal).where(
+        and_(CopiedSignal.id == copied_signal_id, CopiedSignal.user_id == current_user.id)
+    ).values(
+        status=CopyStatus.CANCELLED,
+        closed_at=datetime.now(timezone.utc)
+    )
+    result = await db.execute(stmt)
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Copied signal not found")
+        
+    await db.commit()
+    return {"success": True}
 
 @router.get("/{signal_id}", response_model=SignalResponse, responses={404: {"description": "Signal not found"}})
 async def get_signal_detail(
@@ -140,26 +168,3 @@ async def copy_signal(
         "trade_url": trade_url
     }
 
-@router.get("/copied", response_model=List[CopiedSignalResponse])
-async def get_user_copied_signals(
-    current_user: Annotated[Any, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)]
-):
-    """Get all signals copied by the current user."""
-    stmt = select(CopiedSignal).where(CopiedSignal.user_id == current_user.id).order_by(CopiedSignal.copied_at.desc())
-    result = await db.execute(stmt)
-    return result.scalars().all()
-
-@router.delete("/copied/{copied_signal_id}")
-async def cancel_copied_signal(
-    copied_signal_id: str,
-    current_user: Annotated[Any, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)]
-):
-    """Cancel a previously copied signal."""
-    stmt = delete(CopiedSignal).where(
-        and_(CopiedSignal.id == copied_signal_id, CopiedSignal.user_id == current_user.id)
-    )
-    await db.execute(stmt)
-    await db.commit()
-    return {"success": True}

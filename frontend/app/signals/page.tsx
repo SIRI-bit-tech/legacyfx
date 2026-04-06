@@ -4,11 +4,13 @@ import React, { useState } from 'react';
 import { DashboardLayout } from '../dashboard-layout';
 import { useSignals, SignalFilters } from '@/hooks/useSignals';
 import { useSignalStats } from '@/hooks/useSignalStats';
+import { useCopiedSignals } from '@/hooks/useCopiedSignals';
 import { SignalCard } from '@/components/signals/SignalCard';
 import { SignalStats } from '@/components/signals/SignalStats';
 import { SignalFiltersComponent } from '@/components/signals/SignalFilters';
 import { Pagination } from '@/components/shared/Pagination';
 import { api } from '@/lib/api';
+import { adminApi } from '@/lib/adminApi';
 
 export default function SignalsPage() {
   const [filters, setFilters] = useState<SignalFilters>({
@@ -22,12 +24,13 @@ export default function SignalsPage() {
 
   const { signals, total, loading, error, refresh: refreshSignals } = useSignals(filters, page, 12);
   const { stats, loading: statsLoading, refresh: refreshStats } = useSignalStats();
+  const { copySignal } = useCopiedSignals();
 
   const handleRefresh = async () => {
     setRefreshing(true);
     setRefreshMsg(null);
     try {
-      const result = await api.post('/signals/refresh');
+      const result: any = await adminApi.post('/signals/refresh');
       setRefreshMsg(result.message);
       await refreshSignals();
       await refreshStats();
@@ -78,7 +81,7 @@ export default function SignalsPage() {
       <>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
           {signals.map((signal) => (
-            <SignalCard key={signal.id || signal.symbol} signal={signal} />
+            <SignalCard key={signal.id || signal.symbol} signal={signal} copySignal={copySignal} />
           ))}
         </div>
 

@@ -62,7 +62,7 @@ export const useSignals = (filters: SignalFilters = {}, page = 1, limit = 12) =>
     } finally {
       setLoading(false);
     }
-  }, [filters.asset_type, filters.signal_type, filters.strength, filters.timeframe, page]);
+  }, [filters.asset_type, filters.signal_type, filters.strength, filters.timeframe, page, limit]);
 
   useEffect(() => {
     fetchSignals();

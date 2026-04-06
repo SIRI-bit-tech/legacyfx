@@ -71,19 +71,22 @@ export default function TradePage() {
     if (next) setSymbol((prev) => (prev === next ? prev : next));
     
     const queryType = searchParams.get('type');
-    if (queryType) setSide(queryType.toUpperCase());
+    setSide(queryType ? queryType.toUpperCase() : 'BUY');
     
     const queryEntry = searchParams.get('entry');
     if (queryEntry) {
       setPrice(queryEntry);
       setOrderType('LIMIT');
+    } else {
+      setPrice('');
+      setOrderType('MARKET');
     }
     
     const queryTp = searchParams.get('tp');
-    if (queryTp) setTp(queryTp);
+    setTp(queryTp || '');
     
     const querySl = searchParams.get('sl');
-    if (querySl) setSl(querySl);
+    setSl(querySl || '');
   }, [querySymbol, searchParams]);
 
   // STEP 2 — load TradingView script once, resolve when ready
