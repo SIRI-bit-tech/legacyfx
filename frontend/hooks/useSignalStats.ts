@@ -19,7 +19,7 @@ export const useSignalStats = () => {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get('/signals/stats/');
+      const data: SignalStatsData = await api.get('/signals/stats');
       setStats(data);
       setError(null);
     } catch (err: any) {

@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [globalStats, setGlobalStats] = useState<any>(null);
   const [networkStatusExpanded, setNetworkStatusExpanded] = useState(false);
+  const [coldStorageBalance, setColdStorageBalance] = useState<number>(0);
 
   const summary = usePortfolioSummary();
   const { assets, loading: assetsLoading } = usePortfolioAssets();
@@ -26,16 +27,18 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [portfolioRes, pricesRes, tradesRes, statsRes] = await Promise.all([
+      const [portfolioRes, pricesRes, tradesRes, statsRes, coldStorageRes] = (await Promise.all([
         api.get(API_ENDPOINTS.TRADES.PORTFOLIO).catch(() => null),
         api.get(API_ENDPOINTS.MARKETS.PRICES).catch(() => []),
         api.get(`${API_ENDPOINTS.TRADES.HISTORY}?page=1&limit=5`).catch(() => []),
-        api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null)
-      ]);
+        api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null),
+        api.get(API_ENDPOINTS.COLD_STORAGE.VAULT).catch(() => ({ total_balance_usd: 0 }))
+      ])) as [any, any[], any[], any, any];
       setPortfolio(portfolioRes);
       setPrices(pricesRes || []);
       setTrades(tradesRes || []);
       setGlobalStats(statsRes);
+      setColdStorageBalance(coldStorageRes?.total_balance_usd || 0);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -111,7 +114,7 @@ export default function DashboardPage() {
         </header>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
           <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Net Worth</p>
@@ -155,6 +158,19 @@ export default function DashboardPage() {
               ${globalStats ? (globalStats.total_market_cap / 1e12).toFixed(2) : '--'}T
             </p>
             <p className="text-[10px] text-color-warning font-bold mt-3">BTC Dominance: {globalStats?.btc_dominance?.toFixed(1) || '--'}%</p>
+          </div>
+
+          <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Cold Storage</p>
+              <Link href="/cold-storage">
+                <i className="pi pi-lock text-color-info hover:text-color-primary transition cursor-pointer"></i>
+              </Link>
+            </div>
+            <p className="font-mono text-3xl font-bold text-color-info tracking-tight">
+              ${coldStorageBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            <Link href="/cold-storage" className="text-[10px] text-color-info font-bold mt-3 hover:underline">Manage Vault →</Link>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 
@@ -23,11 +24,11 @@ export default function WalletsPage() {
   const loadWalletData = async () => {
     try {
       setLoading(true);
-      const [walletsRes, depositsRes, withdrawalsRes] = await Promise.all([
+      const [walletsRes, depositsRes, withdrawalsRes] = (await Promise.all([
         api.get(API_ENDPOINTS.WALLETS.LIST).catch(() => []),
         api.get(API_ENDPOINTS.WALLETS.DEPOSIT_HISTORY).catch(() => []),
         api.get(API_ENDPOINTS.WALLETS.WITHDRAW_HISTORY).catch(() => [])
-      ]);
+      ])) as [any[], any[], any[]];
       setWallets(walletsRes || []);
       setDeposits(depositsRes || []);
       setWithdrawals(withdrawalsRes || []);
@@ -99,6 +100,12 @@ export default function WalletsPage() {
             >
               Withdraw
             </button>
+            <Link
+              href="/cold-storage"
+              className="px-6 py-3 bg-color-info hover:opacity-90 text-white font-semibold rounded transition-colors"
+            >
+              Move to Cold Storage
+            </Link>
           </div>
         </div>
 

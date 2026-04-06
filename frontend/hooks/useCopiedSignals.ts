@@ -24,7 +24,7 @@ export const useCopiedSignals = () => {
   const fetchCopiedSignals = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/signals/copied');
+      const data: CopiedSignal[] = await api.get('/signals/copied');
       setCopiedSignals(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch user signals');
@@ -35,7 +35,7 @@ export const useCopiedSignals = () => {
 
   const copySignal = async (signalId: string, openTradeNow: boolean = false) => {
     try {
-      const result: any = await api.post(`/api/signals/${signalId}/copy`, { open_trade_now: openTradeNow });
+      const result: any = await api.post(`/signals/${signalId}/copy`, { open_trade_now: openTradeNow });
       if (result.success) {
         if (openTradeNow && result.trade_url) {
           let finalUrl = result.trade_url;
@@ -60,7 +60,7 @@ export const useCopiedSignals = () => {
 
   const cancelCopy = async (id: string): Promise<boolean> => {
     try {
-      await api.delete(`/api/signals/copied/${id}`);
+      await api.delete(`/signals/copied/${id}`);
       setCopiedSignals(prev => prev.filter(s => s.id !== id));
       return true;
     } catch (err: any) {

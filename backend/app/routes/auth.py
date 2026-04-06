@@ -14,7 +14,7 @@ from app.utils.auth import hash_password, verify_password, create_access_token, 
 from app.utils.email import send_email, create_email_template
 from app.config import get_settings
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 settings = get_settings()
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)

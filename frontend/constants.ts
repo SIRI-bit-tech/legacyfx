@@ -2,7 +2,7 @@
  * API and configuration constants
  */
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export const API_ENDPOINTS = {
   AUTH: {
@@ -110,6 +110,13 @@ export const API_ENDPOINTS = {
     REQUEST: "/deposits/request",
     HISTORY: "/deposits/history",
     CONFIRM: (id: string) => `/deposits/${id}/confirm`,
+  },
+  COLD_STORAGE: {
+    VAULT: "/cold-storage/vault",
+    DEPOSIT: "/cold-storage/deposit",
+    WITHDRAW: "/cold-storage/withdraw",
+    TOGGLE_LOCK: "/cold-storage/toggle-lock",
+    TRANSACTIONS: "/cold-storage/transactions",
   },
 };
 

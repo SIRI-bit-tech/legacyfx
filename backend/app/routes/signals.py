@@ -1,18 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, delete, update, and_
 from typing import List, Optional, Dict, Any, Annotated
 from datetime import datetime, timezone
 
 from app.database import get_db
-from app.models.signals import Signal, SignalHistory, CopiedSignal, AssetType, SignalType, SignalStrength, SignalOutcome
+from app.models.signals import Signal, SignalHistory, CopiedSignal, CopyStatus, AssetType, SignalType, SignalStrength, SignalOutcome
 from app.models.admin import Admin
 from app.utils.auth import get_current_user
 from app.utils.admin_auth import get_current_admin
 from app.schemas.signals import SignalResponse, SignalStats, SignalHistoryResponse, CopiedSignalResponse, CopySignalRequest
 from app.services.signals_service import SignalsService
 
-router = APIRouter(prefix="/api/signals", tags=["Signals"])
+router = APIRouter(prefix="/api/v1/signals", tags=["Signals"])
 
 # Simple lock to prevent multiple refreshes
 _is_refreshing = False

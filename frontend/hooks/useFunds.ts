@@ -73,7 +73,7 @@ export function useFunds(userId?: string) {
         channelRef.current = null;
       }
     };
-  }, [effectiveUserId, channel]);
+  }, [effectiveUserId]);
 
   const fetchFunds = async () => {
     if (!effectiveUserId) return;
