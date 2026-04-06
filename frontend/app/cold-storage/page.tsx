@@ -31,12 +31,8 @@ export default function ColdStoragePage() {
 
   const handleMoveToVault = useCallback(
     async (asset: string, amount: number) => {
-      try {
-        await depositToVault(asset, amount);
-        setMoveModalOpen(false);
-      } catch (err) {
-        console.error('Error depositing to vault:', err);
-      }
+      await depositToVault(asset, amount);
+      setMoveModalOpen(false);
     },
     [depositToVault]
   );

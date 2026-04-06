@@ -22,19 +22,37 @@ def upgrade() -> None:
     """Upgrade schema - add new enum values to transactiontype."""
     connection = op.get_bind()
     
-    # Add new enum values to the transactiontype enum
-    # Using raw SQL with error handling in case values already exist
-    try:
-        connection.execute(text("ALTER TYPE transactiontype ADD VALUE 'COLD_STORAGE_DEPOSIT'"))
-    except Exception as e:
-        if "already exists" not in str(e):
-            raise
+    # Check if enum values already exist before adding
+    # PostgreSQL doesn't allow duplicate enum values
+    result = connection.execute(
+        text("""
+            SELECT EXISTS(
+                SELECT 1 FROM pg_enum 
+                WHERE enumtypid = 'transactiontype'::regtype 
+                AND enumlabel = 'COLD_STORAGE_DEPOSIT'
+            )
+        """)
+    )
     
-    try:
+    if not result.scalar():
+        connection.execute(text("ALTER TYPE transactiontype ADD VALUE 'COLD_STORAGE_DEPOSIT'"))
+    
+    # Commit to reset transaction state before next operation
+    connection.commit()
+    
+    # Check for second value
+    result = connection.execute(
+        text("""
+            SELECT EXISTS(
+                SELECT 1 FROM pg_enum 
+                WHERE enumtypid = 'transactiontype'::regtype 
+                AND enumlabel = 'COLD_STORAGE_WITHDRAWAL'
+            )
+        """)
+    )
+    
+    if not result.scalar():
         connection.execute(text("ALTER TYPE transactiontype ADD VALUE 'COLD_STORAGE_WITHDRAWAL'"))
-    except Exception as e:
-        if "already exists" not in str(e):
-            raise
 
 
 def downgrade() -> None:

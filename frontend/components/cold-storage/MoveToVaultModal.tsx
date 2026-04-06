@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 interface MoveToVaultModalProps {
   isOpen: boolean;
@@ -21,6 +21,21 @@ export function MoveToVaultModal({
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset form state when modal closes
+  const resetForm = useCallback(() => {
+    setSelectedAsset('');
+    setAmount('');
+    setError('');
+    setSubmitting(false);
+  }, []);
+
+  // Clear state whenever modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen, resetForm]);
 
   const selectedAssetData = availableAssets.find(a => a.symbol === selectedAsset);
   const maxAmount = selectedAssetData?.balance || 0;
@@ -139,7 +154,10 @@ export function MoveToVaultModal({
           <div className="flex gap-3 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                resetForm();
+                onClose();
+              }}
               disabled={isSubmitting}
               className="flex-1 bg-bg-tertiary hover:bg-opacity-80 text-text-primary font-semibold py-2 px-4 rounded transition disabled:opacity-50"
             >

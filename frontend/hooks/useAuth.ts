@@ -36,10 +36,12 @@ export function useAuth() {
         setUser(userData);
         setIsAuthenticated(true);
       } catch (err: any) {
-        console.error('Auth check error:', err);
-        console.log('Session response status:', err.response?.status);
-        console.log('Session response data:', err.response?.data);
-        (api as any).setToken(null);
+        // Only log safe info; don't expose sensitive server responses
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Auth check error:', err);
+          console.log('Session response status:', err.response?.status);
+        }
+        api.setToken(null);
         setUser(null);
         setIsAuthenticated(false);
       } finally {
@@ -54,9 +56,12 @@ export function useAuth() {
     try {
       await api.post(API_ENDPOINTS.AUTH.LOGOUT);
     } catch (err) {
-      console.error('Logout error:', err);
+      // Silently handle logout errors; always clear local auth state
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Logout error:', err);
+      }
     } finally {
-      (api as any).setToken(null);
+      api.setToken(null);
       setUser(null);
       setIsAuthenticated(false);
       window.location.href = '/login';

@@ -23,7 +23,7 @@ export default function LoginPage() {
       });
       
       if (response.access_token) {
-        (api as any).setToken(response.access_token);
+        api.setToken(response.access_token);
         window.location.replace('/dashboard');
       }
     } catch (err: any) {
