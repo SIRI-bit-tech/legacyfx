@@ -193,9 +193,10 @@ class RealEstateService:
         hubs = ["NY", "CA", "TX", "FL", "IL", "GA", "OH", "PA", "MI", "MO"]
         
         # Calculate a large enough pool for accurate cross-hub sorting/dedupe
-        # Fetching everything up to the current page's offset from each source
-        limit = filters.limit if filters.limit else 8
-        pool_size = filters.page * limit
+        # Fetching everything up to the current page's offset, capped at 250
+        page = max(filters.page or 1, 1)
+        limit = min(max(filters.limit or 8, 1), 50)
+        pool_size = min(page * limit, 250)
         
         hub_tasks = []
         for state in hubs:
@@ -229,8 +230,10 @@ class RealEstateService:
     async def _fetch_targeted(filters: PropertyFilters, db: AsyncSession) -> List[UnifiedProperty]:
         """Helper to fetch results for a specific location search."""
         # Ensure we have a pool of results from page 1 to the current needed end
-        limit = filters.limit if filters.limit else 8
-        pool_size = filters.page * limit
+        # Clamped to avoid hammering upstream on deep-paginated requests
+        page = max(filters.page or 1, 1)
+        limit = min(max(filters.limit or 8, 1), 50)
+        pool_size = min(page * limit, 250)
         
         pool_filters = filters.model_copy()
         pool_filters.page = 1

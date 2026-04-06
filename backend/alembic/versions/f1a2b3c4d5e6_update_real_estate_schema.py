@@ -74,7 +74,9 @@ def upgrade() -> None:
                 UPDATE {table}
                 SET property_snapshot = json_build_object(
                     'title', p.title,
-                    'location', p.location
+                    'location', p.location,
+                    'city', p.city,
+                    'state', p.state
                 )
                 FROM real_estate_properties p
                 WHERE {table}.property_id = p.id

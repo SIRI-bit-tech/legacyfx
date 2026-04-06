@@ -25,8 +25,7 @@ from app.models.settings import SystemSettings
 from app.models.notification import Notification
 from app.models.referral import Referral
 from app.models.security import LoginHistory
-from app.models.signal import Signal
-from app.models.signals import SignalSource, TradingSignal
+from app.models.signals import Signal, SignalHistory, CopiedSignal, SignalAccuracy, SignalCache
 from app.models.staking import StakingPosition
 from app.models.support import SupportTicket, TicketMessage
 from app.models.trade import Trade

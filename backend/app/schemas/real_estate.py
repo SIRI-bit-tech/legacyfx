@@ -15,8 +15,8 @@ class PropertyFilters(BaseModel):
     property_type: Optional[str] = None
     priceRange: Optional[str] = None
     search: Optional[str] = None
-    page: int = 1
-    limit: int = 8
+    page: int = Field(1, ge=1, description="Page number, minimum 1")
+    limit: int = Field(8, ge=1, le=50, description="Results per page, maximum 50")
 
 class UnifiedProperty(BaseModel):
     id: str
