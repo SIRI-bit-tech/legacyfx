@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/assets', label: 'Assets & Prices', icon: 'pi-chart-bar' },
   { href: '/admin/deposit-addresses', label: 'Deposit Addresses', icon: 'pi-wallet' },
   { href: '/admin/orders', label: 'Orders', icon: 'pi-receipt' },
+  { href: '/admin/staking', label: 'Staking', icon: 'pi-money-bill' },
   { href: '/admin/mining', label: 'Mining', icon: 'pi-server' },
   { href: '/admin/settings', label: 'Settings', icon: 'pi-cog' },
 ];

@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [globalStats, setGlobalStats] = useState<any>(null);
   const [networkStatusExpanded, setNetworkStatusExpanded] = useState(false);
   const [coldStorageBalance, setColdStorageBalance] = useState<number>(0);
+  const [stakingStats, setStakingStats] = useState<any>(null);
 
   const summary = usePortfolioSummary();
   const { assets, loading: assetsLoading } = usePortfolioAssets();
@@ -27,18 +28,20 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [portfolioRes, pricesRes, tradesRes, statsRes, coldStorageRes] = (await Promise.all([
+      const [portfolioRes, pricesRes, tradesRes, statsRes, coldStorageRes, stakingRes] = (await Promise.all([
         api.get(API_ENDPOINTS.TRADES.PORTFOLIO).catch(() => null),
         api.get(API_ENDPOINTS.MARKETS.PRICES).catch(() => []),
         api.get(`${API_ENDPOINTS.TRADES.HISTORY}?page=1&limit=5`).catch(() => []),
         api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null),
-        api.get(API_ENDPOINTS.COLD_STORAGE.VAULT).catch(() => ({ total_balance_usd: 0 }))
-      ])) as [any, any[], any[], any, any];
+        api.get(API_ENDPOINTS.COLD_STORAGE.VAULT).catch(() => ({ total_balance_usd: 0 })),
+        api.get('/api/v1/staking/stats').catch(() => null)
+      ])) as [any, any[], any[], any, any, any];
       setPortfolio(portfolioRes);
       setPrices(pricesRes || []);
       setTrades(tradesRes || []);
       setGlobalStats(statsRes);
       setColdStorageBalance(coldStorageRes?.total_balance_usd || 0);
+      setStakingStats(stakingRes);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -171,6 +174,20 @@ export default function DashboardPage() {
               ${coldStorageBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
             <Link href="/cold-storage" className="text-[10px] text-color-info font-bold mt-3 hover:underline">Manage Vault →</Link>
+          </div>
+
+          <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Staking</p>
+              <Link href="/staking">
+                <i className="pi pi-chart-line text-color-success hover:text-color-primary transition cursor-pointer"></i>
+              </Link>
+            </div>
+            <p className="font-mono text-3xl font-bold text-color-success tracking-tight">
+              ${stakingStats?.total_staked_usd ? stakingStats.total_staked_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+            </p>
+            <p className="text-[10px] text-color-success font-bold mt-3">{stakingStats?.active_stakes_count || 0} Active • {stakingStats?.avg_apy ? stakingStats.avg_apy.toFixed(1) : '0'}% APY</p>
+            <Link href="/staking" className="text-[10px] text-color-success font-bold mt-2 hover:underline block">View Staking →</Link>
           </div>
         </div>
 

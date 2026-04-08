@@ -106,6 +106,21 @@ async def get_current_user(
     return user
 
 
+def is_admin(user: User) -> bool:
+    """Check if a user has admin privileges.
+    
+    Currently checks against a list of admin email addresses.
+    In the future, this should check a role/is_admin column on the User model.
+    """
+    # List of admin email addresses (can be moved to environment variables)
+    admin_emails = [
+        "admin@legacyfx.com",
+        "support@legacyfx.com",
+    ]
+    
+    return user.email.lower() in [email.lower() for email in admin_emails]
+
+
 def generate_totp_secret() -> str:
     """Generate a TOTP secret for 2FA."""
     return pyotp.random_base32()

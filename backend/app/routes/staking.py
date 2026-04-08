@@ -1,115 +1,338 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import List, Optional
-import uuid
-from datetime import datetime, timedelta
 
 from app.database import get_db
 from app.models.user import User
-from app.models.investment import InvestmentProduct, InvestmentPosition, InvestmentType
-from app.utils.auth import get_current_user
-from app.schemas.investment import InvestmentProductResponse
-from pydantic import BaseModel
+from app.models.staking import StakingType
+from app.schemas.staking import (
+    StakingPoolResponse,
+    StakingPositionResponse,
+    StakingStatsResponse,
+    StakingRewardResponse,
+    StakingScheduleResponse,
+    StakingOperationResponse,
+    StakeRequest,
+    ClaimRewardsRequest,
+    AdminPoolRequest,
+    AdminPoolUpdateRequest
+)
+from app.services.staking_service import StakingService
+from app.utils.auth import get_current_user, is_admin
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/staking", tags=["staking"])
 
-class StakeRequest(BaseModel):
-    product_id: str
-    amount: float
 
-class StakingResponse(BaseModel):
-    id: str
-    asset_symbol: str
-    amount: float
-    apy: float
-    status: str
-    unlock_date: Optional[datetime]
-    created_at: datetime
+# ============================================================================
+# PUBLIC ENDPOINTS (All Users - Pool Browsing & Staking Operations)
+# ============================================================================
 
-@router.get("/products", response_model=List[InvestmentProductResponse])
-async def get_staking_products(db: AsyncSession = Depends(get_db)):
-    """Get all available staking products."""
-    stmt = select(InvestmentProduct).where(InvestmentProduct.type == InvestmentType.STAKING, InvestmentProduct.is_active == True)
-    result = await db.execute(stmt)
-    products = result.scalars().all()
-    return [InvestmentProductResponse.from_orm(p) for p in products]
+@router.get("/pools", response_model=List[StakingPoolResponse])
+async def list_staking_pools(
+    staking_type: Optional[StakingType] = Query(None, description="Filter by staking type (FLEXIBLE, FIXED_30, FIXED_90, FIXED_180)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all available staking pools.
+    
+    Optional query params:
+    - staking_type: Filter pools by type (FLEXIBLE/FIXED_30/FIXED_90/FIXED_180)
+    """
+    try:
+        pools = await StakingService.get_all_pools(db, filter_type=staking_type)
+        return pools
+    except Exception as e:
+        logger.error(f"Error fetching staking pools: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch staking pools")
 
-@router.post("/stake", response_model=StakingResponse)
-async def create_staking(
+
+@router.get("/pools/{pool_id}", response_model=StakingPoolResponse)
+async def get_staking_pool(
+    pool_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get details of a specific staking pool."""
+    try:
+        pool = await StakingService.get_pool_by_id(db, pool_id)
+        if not pool:
+            raise HTTPException(status_code=404, detail="Staking pool not found")
+        return pool
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching pool {pool_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch staking pool")
+
+
+@router.post("/stakes", response_model=StakingOperationResponse)
+async def create_stake(
     request: StakeRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Stake an asset into a product."""
-    stmt = select(InvestmentProduct).where(
-        InvestmentProduct.id == request.product_id, 
-        InvestmentProduct.type == InvestmentType.STAKING,
-        InvestmentProduct.is_active == True
-    )
-    result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
+    """
+    Create a new staking position.
     
-    if not product:
-        raise HTTPException(status_code=404, detail="Staking product not found")
+    Request body:
+    {
+        "pool_id": "uuid",
+        "amount": 1000.00
+    }
+    """
+    try:
+        position_id = await StakingService.stake(
+            db,
+            user_id=current_user.id,
+            pool_id=request.pool_id,
+            amount=request.amount
+        )
+        return StakingOperationResponse(
+            success=True,
+            message=f"Successfully staked {request.amount} USDT",
+            data={"position_id": position_id}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating stake for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create stake")
 
-    # For staking, we check UserAsset instead of trading balance if it's not a USD product
-    # But for this demo broker, many allow USD staking or auto-convert
-    # Let's assume user stakes from their trading balance (USD converted)
-    if current_user.trading_balance < request.amount:
-        raise HTTPException(status_code=400, detail="Insufficient trading balance")
 
-    pos_id = str(uuid.uuid4())
-    unlock_date = datetime.utcnow() + timedelta(days=product.duration_days) if product.duration_days else None
-    
-    new_staking = InvestmentPosition(
-        id=pos_id,
-        user_id=current_user.id,
-        product_id=product.id,
-        amount=request.amount,
-        apy_at_start=product.apy,
-        status="ACTIVE",
-        maturity_date=unlock_date
-    )
-    
-    current_user.trading_balance -= request.amount
-    
-    db.add(new_staking)
-    await db.commit()
-    
-    return StakingResponse(
-        id=pos_id,
-        asset_symbol=product.asset_symbol,
-        amount=request.amount,
-        apy=product.apy,
-        status="ACTIVE",
-        unlock_date=unlock_date,
-        created_at=datetime.utcnow()
-    )
-
-@router.get("/my-staking", response_model=List[StakingResponse])
-async def get_my_staking(
+@router.get("/stakes", response_model=List[StakingPositionResponse])
+async def get_user_stakes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get user's active staking positions."""
-    stmt = select(InvestmentPosition, InvestmentProduct).join(
-        InvestmentProduct, InvestmentPosition.product_id == InvestmentProduct.id
-    ).where(
-        InvestmentPosition.user_id == current_user.id,
-        InvestmentProduct.type == InvestmentType.STAKING
-    )
-    result = await db.execute(stmt)
-    rows = result.all()
+    """Get all active staking positions for current user."""
+    try:
+        stakes = await StakingService.get_user_stakes(db, user_id=current_user.id)
+        return stakes
+    except Exception as e:
+        logger.error(f"Error fetching stakes for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch staking positions")
+
+
+@router.delete("/stakes/{position_id}", response_model=StakingOperationResponse)
+async def unstake(
+    position_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Unstake from a position.
     
-    return [
-        StakingResponse(
-            id=p.id,
-            asset_symbol=ip.asset_symbol,
-            amount=p.amount,
-            apy=p.apy_at_start,
-            status=p.status.value if hasattr(p.status, 'value') else p.status,
-            unlock_date=p.maturity_date,
-            created_at=p.started_at
-        ) for p, ip in rows
-    ]
+    Returns principal + earned rewards.
+    Cannot unstake if position is locked.
+    """
+    try:
+        amount_returned = await StakingService.unstake(
+            db,
+            user_id=current_user.id,
+            position_id=position_id
+        )
+        return StakingOperationResponse(
+            success=True,
+            message=f"Successfully unstaked. Returned: {amount_returned} USDT",
+            data={"amount_returned": amount_returned}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error unstaking {position_id} for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to unstake")
+
+
+@router.get("/stats", response_model=StakingStatsResponse)
+async def get_staking_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get comprehensive staking statistics for current user."""
+    try:
+        stats = await StakingService.get_user_stats(db, user_id=current_user.id)
+        return stats
+    except Exception as e:
+        logger.error(f"Error fetching stats for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch staking statistics")
+
+
+@router.get("/rewards", response_model=List[StakingRewardResponse])
+async def get_rewards_history(
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get reward history for current user (paginated)."""
+    try:
+        rewards = await StakingService.get_user_rewards_history(db, user_id=current_user.id, limit=limit)
+        return rewards
+    except Exception as e:
+        logger.error(f"Error fetching rewards for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch reward history")
+
+
+@router.post("/rewards/claim", response_model=StakingOperationResponse)
+async def claim_rewards(
+    request: ClaimRewardsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Claim accrued rewards.
+    
+    Request body:
+    {
+        "position_id": "uuid (optional - if not provided, claims all positions)"
+    }
+    
+    Returns amount claimed and added to trading balance.
+    """
+    try:
+        amount_claimed = await StakingService.claim_rewards(
+            db,
+            user_id=current_user.id,
+            position_id=request.position_id
+        )
+        return StakingOperationResponse(
+            success=True,
+            message=f"Successfully claimed {amount_claimed} USDT in rewards",
+            data={"amount_claimed": amount_claimed}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error claiming rewards for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to claim rewards")
+
+
+@router.get("/schedule", response_model=List[StakingScheduleResponse])
+async def get_payout_schedule(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get upcoming payout schedule for user's staking positions."""
+    try:
+        schedule = await StakingService.get_payout_schedule(db, user_id=current_user.id)
+        return schedule
+    except Exception as e:
+        logger.error(f"Error fetching schedule for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch payout schedule")
+
+
+# ============================================================================
+# ADMIN ENDPOINTS (Admin-only Pool Management)
+# ============================================================================
+
+@router.post("/admin/pools", response_model=StakingOperationResponse)
+async def create_staking_pool(
+    request: AdminPoolRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new staking pool (admin only).
+    
+    Request body:
+    {
+        "asset_symbol": "USDT",
+        "staking_type": "FLEXIBLE",
+        "annual_percentage_yield": 12.5,
+        "min_stake_amount": 100.0,
+        "lock_period_days": 0,
+        "payout_frequency": "DAILY",
+        "pool_capacity_amount": 1000000.0
+    }
+    """
+    try:
+        # Check admin status
+        if not is_admin(current_user):
+            raise HTTPException(status_code=403, detail="Admin permission required")
+        
+        pool_id = await StakingService.create_pool(
+            db,
+            asset_symbol=request.asset_symbol,
+            staking_type=request.staking_type,
+            annual_percentage_yield=request.annual_percentage_yield,
+            min_stake_amount=request.min_stake_amount,
+            lock_period_days=request.lock_period_days,
+            payout_frequency=request.payout_frequency,
+            pool_capacity_amount=request.pool_capacity_amount
+        )
+        await db.commit()
+        
+        return StakingOperationResponse(
+            success=True,
+            message=f"Staking pool created successfully",
+            data={"pool_id": pool_id}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating staking pool: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create staking pool")
+
+
+@router.put("/admin/pools/{pool_id}", response_model=StakingOperationResponse)
+async def update_staking_pool(
+    pool_id: str,
+    request: AdminPoolUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update staking pool (admin only).
+    
+    Request body (all fields optional):
+    {
+        "annual_percentage_yield": 15.0,
+        "min_stake_amount": 50.0,
+        "pool_capacity_amount": 2000000.0,
+        "is_active": true,
+        "payout_frequency": "MONTHLY"
+    }
+    """
+    try:
+        # Check admin status
+        if not is_admin(current_user):
+            raise HTTPException(status_code=403, detail="Admin permission required")
+        
+        # Build update dict from request (only include provided fields)
+        update_data = {}
+        if request.annual_percentage_yield is not None:
+            update_data['annual_percentage_yield'] = request.annual_percentage_yield
+        if request.min_stake_amount is not None:
+            update_data['min_stake_amount'] = request.min_stake_amount
+        if request.pool_capacity_amount is not None:
+            update_data['pool_capacity_amount'] = request.pool_capacity_amount
+        if request.is_active is not None:
+            update_data['is_active'] = request.is_active
+        if request.payout_frequency is not None:
+            update_data['payout_frequency'] = request.payout_frequency
+        
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        success = await StakingService.update_pool(db, pool_id, **update_data)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Pool not found")
+        
+        await db.commit()
+        
+        return StakingOperationResponse(
+            success=True,
+            message=f"Staking pool updated successfully",
+            data={"pool_id": pool_id}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating pool {pool_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update staking pool")
