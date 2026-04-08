@@ -5,8 +5,8 @@ from enum import Enum
 
 
 class ColdStorageTransactionType(str, Enum):
-    DEPOSIT = "DEPOSIT"
-    WITHDRAWAL = "WITHDRAWAL"
+    DEPOSIT = "COLD_STORAGE_DEPOSIT"
+    WITHDRAWAL = "COLD_STORAGE_WITHDRAWAL"
 
 
 class VaultAssetResponse(BaseModel):
@@ -65,7 +65,7 @@ class ToggleColdStorageLockResponse(BaseModel):
 
 class ColdStorageTransactionResponse(BaseModel):
     id: str
-    transaction_type: str
+    transaction_type: ColdStorageTransactionType
     asset_symbol: str
     amount: float
     usd_amount: Optional[float]

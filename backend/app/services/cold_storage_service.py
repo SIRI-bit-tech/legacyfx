@@ -37,8 +37,15 @@ class ColdStorageService:
 
     @staticmethod
     async def get_or_create_vault(user_id: str, db: AsyncSession) -> ColdStorageVault:
-        """Get existing vault or create new one for user."""
-        stmt = select(ColdStorageVault).where(ColdStorageVault.user_id == user_id)
+        """Get existing vault or create new one for user.
+        
+        NOTE: This should be called within a transaction context.
+        No independent commit is done here - transaction is managed by caller.
+        """
+        # Use FOR UPDATE to lock the row if it exists (prevents race conditions)
+        stmt = select(ColdStorageVault).where(
+            ColdStorageVault.user_id == user_id
+        ).with_for_update()
         result = await db.execute(stmt)
         vault = result.scalar_one_or_none()
 
@@ -51,15 +58,30 @@ class ColdStorageService:
                 is_locked=True,
             )
             db.add(vault)
-            await db.commit()
-            await db.refresh(vault)
+            # Do NOT commit here - let the caller manage the transaction
 
         return vault
 
     @staticmethod
     async def get_vault_data(user_id: str, db: AsyncSession) -> dict:
-        """Get vault overview with USD conversion."""
-        vault = await ColdStorageService.get_or_create_vault(user_id, db)
+        """Get vault overview with USD conversion (read-only)."""
+        # Get vault - should already exist from deposit/withdraw/toggle operations
+        stmt = select(ColdStorageVault).where(ColdStorageVault.user_id == user_id)
+        result = await db.execute(stmt)
+        vault = result.scalar_one_or_none()
+
+        if not vault:
+            # Create default vault if it doesn't exist (for first-time access to page)
+            async with db.begin():
+                vault = ColdStorageVault(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    asset_symbol="MIXED",
+                    balance=0.0,
+                    is_locked=True,
+                )
+                db.add(vault)
+                await db.flush()
 
         # Get all cold storage transactions for this user to calculate asset breakdown
         stmt = select(Transaction).where(
@@ -118,50 +140,70 @@ class ColdStorageService:
         if amount <= 0:
             raise ColdStorageError("Amount must be greater than 0")
 
-        # Get user to check trading balance
-        stmt = select(User).where(User.id == user_id)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
+        # Use transaction block with row locks to prevent race conditions
+        async with db.begin():
+            # Get user with FOR UPDATE lock to prevent concurrent modifications
+            stmt = select(User).where(User.id == user_id).with_for_update()
+            result = await db.execute(stmt)
+            user = result.scalar_one_or_none()
 
-        if not user:
-            raise ColdStorageError("User not found")
+            if not user:
+                raise ColdStorageError("User not found")
 
-        if user.trading_balance < amount:
-            raise InsufficientBalanceError(
-                f"Insufficient trading balance. Available: {user.trading_balance}, Required: {amount}"
+            if user.trading_balance < amount:
+                raise InsufficientBalanceError(
+                    f"Insufficient trading balance. Available: {user.trading_balance}, Required: {amount}"
+                )
+
+            # Get vault with FOR UPDATE lock
+            stmt = select(ColdStorageVault).where(
+                ColdStorageVault.user_id == user_id
+            ).with_for_update()
+            result = await db.execute(stmt)
+            vault = result.scalar_one_or_none()
+
+            if not vault:
+                # Create vault within transaction (with lock)
+                vault = ColdStorageVault(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    asset_symbol="MIXED",
+                    balance=0.0,
+                    is_locked=True,
+                )
+                db.add(vault)
+                await db.flush()  # Ensure vault has ID before using it
+
+            # Get price for USD amount
+            price = await get_live_price(asset_symbol)
+            usd_amount = amount * price
+
+            # Create transaction record
+            transaction_id = str(uuid.uuid4())
+            transaction = Transaction(
+                id=transaction_id,
+                user_id=user_id,
+                type=TransactionType.COLD_STORAGE_DEPOSIT,
+                asset_symbol=asset_symbol,
+                amount=amount,
+                usd_amount=usd_amount,
+                description=f"Deposit {amount} {asset_symbol} to cold storage",
+                reference_id=vault.id,
+                status="COMPLETED"
             )
+            db.add(transaction)
 
-        # Get or create vault
-        vault = await ColdStorageService.get_or_create_vault(user_id, db)
+            # Update user trading balance (under lock)
+            user.trading_balance -= amount
 
-        # Get price for USD amount
-        price = await get_live_price(asset_symbol)
-        usd_amount = amount * price
+            # NOTE: We do NOT update vault.balance here because:
+            # 1. Transactions already record the asset amount and usd_amount
+            # 2. get_vault_data() calculates balances from transaction history
+            # 3. vault.balance is metadata-only for this vault
 
-        # Create transaction record
-        transaction_id = str(uuid.uuid4())
-        transaction = Transaction(
-            id=transaction_id,
-            user_id=user_id,
-            type=TransactionType.COLD_STORAGE_DEPOSIT,
-            asset_symbol=asset_symbol,
-            amount=amount,
-            usd_amount=usd_amount,
-            description=f"Deposit {amount} {asset_symbol} to cold storage",
-            reference_id=vault.id,
-            status="COMPLETED"
-        )
-        db.add(transaction)
+            # Transaction is committed when exiting the async with block
 
-        # Update user trading balance
-        user.trading_balance -= amount
-
-        # Update vault
-        vault.balance += usd_amount
-
-        await db.commit()
-
-        # Broadcast via Ably if available
+        # Broadcast via Ably if available (outside transaction)
         if ably_service:
             try:
                 await ably_service.publish(
@@ -198,74 +240,85 @@ class ColdStorageService:
         if amount <= 0:
             raise ColdStorageError("Amount must be greater than 0")
 
-        # Get vault
-        vault = await ColdStorageService.get_or_create_vault(user_id, db)
+        # Use transaction block with row locks to prevent race conditions
+        async with db.begin():
+            # Get vault with FOR UPDATE lock
+            stmt = select(ColdStorageVault).where(
+                ColdStorageVault.user_id == user_id
+            ).with_for_update()
+            result = await db.execute(stmt)
+            vault = result.scalar_one_or_none()
 
-        if vault.is_locked:
-            raise VaultLockedError("Vault is locked. Unlock it before withdrawing.")
+            if not vault:
+                raise VaultNotFoundError("Vault not found")
 
-        # Get user
-        stmt = select(User).where(User.id == user_id)
-        result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
+            if vault.is_locked:
+                raise VaultLockedError("Vault is locked. Unlock it before withdrawing.")
 
-        if not user:
-            raise ColdStorageError("User not found")
+            # Get user with FOR UPDATE lock
+            stmt = select(User).where(User.id == user_id).with_for_update()
+            result = await db.execute(stmt)
+            user = result.scalar_one_or_none()
 
-        # Calculate available balance in vault for this asset
-        stmt = select(Transaction).where(
-            Transaction.user_id == user_id,
-            Transaction.asset_symbol == asset_symbol,
-            Transaction.type.in_([
-                TransactionType.COLD_STORAGE_DEPOSIT,
-                TransactionType.COLD_STORAGE_WITHDRAWAL
-            ])
-        ).order_by(Transaction.created_at)
+            if not user:
+                raise ColdStorageError("User not found")
 
-        result = await db.execute(stmt)
-        transactions = result.scalars().all()
+            # Calculate available balance in vault for this asset (read all transactions with lock)
+            stmt = select(Transaction).where(
+                Transaction.user_id == user_id,
+                Transaction.asset_symbol == asset_symbol,
+                Transaction.type.in_([
+                    TransactionType.COLD_STORAGE_DEPOSIT,
+                    TransactionType.COLD_STORAGE_WITHDRAWAL
+                ])
+            ).order_by(Transaction.created_at)
 
-        available_balance = 0.0
-        for tx in transactions:
-            if tx.type == TransactionType.COLD_STORAGE_DEPOSIT:
-                available_balance += tx.amount
-            else:
-                available_balance -= tx.amount
+            result = await db.execute(stmt)
+            transactions = result.scalars().all()
 
-        if available_balance < amount:
-            raise InsufficientBalanceError(
-                f"Insufficient {asset_symbol} in vault. Available: {available_balance}"
+            available_balance = 0.0
+            for tx in transactions:
+                if tx.type == TransactionType.COLD_STORAGE_DEPOSIT:
+                    available_balance += tx.amount
+                else:
+                    available_balance -= tx.amount
+
+            if available_balance < amount:
+                raise InsufficientBalanceError(
+                    f"Insufficient {asset_symbol} in vault. Available: {available_balance}"
+                )
+
+            # Get price for USD amount
+            price = await get_live_price(asset_symbol)
+            usd_amount = amount * price
+
+            # Create transaction record
+            transaction_id = str(uuid.uuid4())
+            transaction = Transaction(
+                id=transaction_id,
+                user_id=user_id,
+                type=TransactionType.COLD_STORAGE_WITHDRAWAL,
+                asset_symbol=asset_symbol,
+                amount=amount,
+                usd_amount=usd_amount,
+                description=f"Withdraw {amount} {asset_symbol} from cold storage",
+                reference_id=vault.id,
+                status="COMPLETED"
             )
+            db.add(transaction)
 
-        # Get price for USD amount
-        price = await get_live_price(asset_symbol)
-        usd_amount = amount * price
+            # Update user trading balance (under lock)
+            user.trading_balance += amount
+            vault.last_withdrawal_at = datetime.utcnow()
 
-        # Create transaction record
-        transaction_id = str(uuid.uuid4())
-        transaction = Transaction(
-            id=transaction_id,
-            user_id=user_id,
-            type=TransactionType.COLD_STORAGE_WITHDRAWAL,
-            asset_symbol=asset_symbol,
-            amount=amount,
-            usd_amount=usd_amount,
-            description=f"Withdraw {amount} {asset_symbol} from cold storage",
-            reference_id=vault.id,
-            status="COMPLETED"
-        )
-        db.add(transaction)
+            # NOTE: We do NOT update vault.balance here because:
+            # 1. Transactions already record the asset amount and usd_amount
+            # 2. get_vault_data() calculates balances from transaction history
+            # 3. vault.balance is metadata-only for this vault
 
-        # Update user trading balance
-        user.trading_balance += amount
+            # Transaction is committed when exiting the async with block
 
-        # Update vault
-        vault.balance -= usd_amount
-        vault.last_withdrawal_at = datetime.utcnow()
-
-        await db.commit()
-
-        # Broadcast via Ably
+        # Broadcast via Ably (outside transaction)
         if ably_service:
             try:
                 await ably_service.publish(
@@ -291,10 +344,19 @@ class ColdStorageService:
     @staticmethod
     async def toggle_vault_lock(user_id: str, is_locked: bool, db: AsyncSession) -> dict:
         """Toggle vault lock status."""
-        vault = await ColdStorageService.get_or_create_vault(user_id, db)
-        vault.is_locked = is_locked
-        await db.commit()
-        await db.refresh(vault)
+        async with db.begin():
+            # Get vault with FOR UPDATE lock
+            stmt = select(ColdStorageVault).where(
+                ColdStorageVault.user_id == user_id
+            ).with_for_update()
+            result = await db.execute(stmt)
+            vault = result.scalar_one_or_none()
+
+            if not vault:
+                raise VaultNotFoundError("Vault not found")
+
+            vault.is_locked = is_locked
+            # Transaction is committed when exiting the async with block
 
         status = "locked" if is_locked else "unlocked"
         return {

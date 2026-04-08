@@ -43,7 +43,6 @@ export function useColdStorage() {
             setLoading(true);
             setError(null);
             const response = await api.get(API_ENDPOINTS.COLD_STORAGE.VAULT);
-            console.log('Vault response:', response);
             // Handle both response.data and direct response formats
             const vaultData = response?.data ? response.data : response;
             if (vaultData) {

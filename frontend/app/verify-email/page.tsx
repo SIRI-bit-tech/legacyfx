@@ -84,7 +84,7 @@ function VerifyEmailContent() {
       
       // Store token if returned and update API client state
       if (response.access_token) {
-        (api as any).setToken(response.access_token);
+        api.setToken(response.access_token);
       }
 
       setSuccess(true);
