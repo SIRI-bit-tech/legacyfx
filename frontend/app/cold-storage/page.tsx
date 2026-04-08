@@ -11,7 +11,7 @@ import { MoveToVaultModal } from '@/components/cold-storage/MoveToVaultModal';
 export default function ColdStoragePage() {
   const { vault, transactions, loading, error, depositToVault, withdrawFromVault, toggleLock } =
     useColdStorage();
-  const { data: fundsData } = useFunds();
+  const fundsData = useFunds();
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [lockLoading, setLockLoading] = useState(false);
 
@@ -31,8 +31,15 @@ export default function ColdStoragePage() {
 
   const handleMoveToVault = useCallback(
     async (asset: string, amount: number) => {
-      await depositToVault(asset, amount);
-      setMoveModalOpen(false);
+      try {
+        await depositToVault(asset, amount);
+      } catch (err) {
+        // Error already set in hook state, just log and don't close modal
+        console.error('Deposit to vault error:', err);
+      } finally {
+        // Always close modal on success or error
+        setMoveModalOpen(false);
+      }
     },
     [depositToVault]
   );
