@@ -106,19 +106,22 @@ async def get_current_user(
     return user
 
 
-def is_admin(user: User) -> bool:
+async def is_admin(user: User, db: AsyncSession) -> bool:
     """Check if a user has admin privileges.
     
-    Currently checks against a list of admin email addresses.
-    In the future, this should check a role/is_admin column on the User model.
+    Checks if the user's email exists in the admins table with ACTIVE status.
+    This is the authoritative source of truth for admin privileges.
     """
-    # List of admin email addresses (can be moved to environment variables)
-    admin_emails = [
-        "admin@legacyfx.com",
-        "support@legacyfx.com",
-    ]
+    from app.models.admin import Admin, AdminStatus
     
-    return user.email.lower() in [email.lower() for email in admin_emails]
+    stmt = select(Admin).where(
+        Admin.email == user.email,
+        Admin.status == AdminStatus.ACTIVE
+    )
+    result = await db.execute(stmt)
+    admin = result.scalar_one_or_none()
+    
+    return admin is not None
 
 
 def generate_totp_secret() -> str:

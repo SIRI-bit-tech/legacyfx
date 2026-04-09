@@ -248,7 +248,7 @@ async def create_staking_pool(
     """
     try:
         # Check admin status
-        if not is_admin(current_user):
+        if not await is_admin(current_user, db):
             raise HTTPException(status_code=403, detail="Admin permission required")
         
         pool_id = await StakingService.create_pool(
@@ -298,7 +298,7 @@ async def update_staking_pool(
     """
     try:
         # Check admin status
-        if not is_admin(current_user):
+        if not await is_admin(current_user, db):
             raise HTTPException(status_code=403, detail="Admin permission required")
         
         # Build update dict from request (only include provided fields)

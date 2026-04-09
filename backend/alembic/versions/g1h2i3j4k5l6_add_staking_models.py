@@ -48,8 +48,8 @@ def upgrade() -> None:
     if not insp.has_table('staking_positions'):
         op.create_table('staking_positions',
             sa.Column('id', sa.String(36), primary_key=True, nullable=False),
-            sa.Column('user_id', sa.String(36), nullable=False),
-            sa.Column('pool_id', sa.String(36), nullable=False),
+            sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', name='fk_staking_positions_user_id'), nullable=False),
+            sa.Column('pool_id', sa.String(36), sa.ForeignKey('staking_products.id', name='fk_staking_positions_pool_id'), nullable=False),
             sa.Column('amount_staked', sa.Float(), nullable=False),
             sa.Column('total_earned_amount', sa.Float(), nullable=False, server_default='0'),
             sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
@@ -59,8 +59,6 @@ def upgrade() -> None:
             sa.Column('started_at', sa.DateTime(), nullable=False),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=True),
-            sa.ForeignKey('user_id', 'users.id', name='fk_staking_positions_user_id'),
-            sa.ForeignKey('pool_id', 'staking_products.id', name='fk_staking_positions_pool_id'),
         )
         op.create_index('ix_staking_positions_user_id', 'staking_positions', ['user_id'])
         op.create_index('ix_staking_positions_pool_id', 'staking_positions', ['pool_id'])
@@ -69,7 +67,7 @@ def upgrade() -> None:
     if not insp.has_table('staking_rewards'):
         op.create_table('staking_rewards',
             sa.Column('id', sa.String(36), primary_key=True, nullable=False),
-            sa.Column('position_id', sa.String(36), nullable=False),
+            sa.Column('position_id', sa.String(36), sa.ForeignKey('staking_positions.id', name='fk_staking_rewards_position_id'), nullable=False),
             sa.Column('amount', sa.Float(), nullable=False),
             sa.Column('status', sa.String(20), nullable=False, server_default='ACCRUED'),
             sa.Column('reward_type', sa.String(30), nullable=False),
@@ -78,7 +76,6 @@ def upgrade() -> None:
             sa.Column('claimed_on_date', sa.DateTime(), nullable=True),
             sa.Column('created_at', sa.DateTime(), nullable=False),
             sa.Column('updated_at', sa.DateTime(), nullable=True),
-            sa.ForeignKey('position_id', 'staking_positions.id', name='fk_staking_rewards_position_id'),
         )
         op.create_index('ix_staking_rewards_position_id', 'staking_rewards', ['position_id'])
         op.create_index('ix_staking_rewards_status', 'staking_rewards', ['status'])
