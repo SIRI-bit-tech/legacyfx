@@ -24,6 +24,7 @@ export function AssetsBalancesTableRows({
             <th className="px-6 py-4 text-right">Total</th>
             <th className="px-6 py-4 text-right">Available</th>
             <th className="px-6 py-4 text-right">In orders</th>
+            <th className="px-6 py-4 text-right">In staking</th>
             <th className="px-6 py-4 text-right">Value (USD)</th>
             <th className="px-6 py-4">Allocation</th>
             <th className="px-6 py-4 text-right">Actions</th>
@@ -51,6 +52,9 @@ export function AssetsBalancesTableRows({
               </td>
               <td className="px-6 py-5 text-right">
                 <p className="font-mono text-sm text-text-tertiary">{formatNumber(a.inOrders)}</p>
+              </td>
+              <td className="px-6 py-5 text-right">
+                <p className="font-mono text-sm text-color-warning">0.00</p>
               </td>
               <td className="px-6 py-5 text-right">
                 <p className="font-mono text-sm font-bold text-text-primary">
