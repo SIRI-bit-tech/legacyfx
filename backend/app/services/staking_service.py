@@ -90,8 +90,12 @@ class StakingService:
     ) -> StakingPosition:
         """Create new staking position"""
         
-        # Get pool
-        pool = await StakingService.get_pool_by_id(db, pool_id)
+        # Acquire row-level locks on pool and user to prevent race conditions
+        # Get pool with FOR UPDATE lock
+        pool_stmt = select(StakingProduct).where(StakingProduct.id == pool_id).with_for_update()
+        pool_result = await db.execute(pool_stmt)
+        pool = pool_result.scalar_one_or_none()
+        
         if not pool or not pool.is_active:
             raise ValueError("Pool not found or inactive")
         
@@ -99,12 +103,12 @@ class StakingService:
         if amount < pool.min_stake_amount:
             raise ValueError(f"Minimum stake amount is {pool.min_stake_amount}")
         
-        # Check pool capacity
+        # Check pool capacity (with locked row)
         if pool.pool_capacity_amount and pool.current_total_staked + amount > pool.pool_capacity_amount:
             raise ValueError("Pool capacity exceeded")
         
-        # Check user balance
-        user_stmt = select(User).where(User.id == user_id)
+        # Get user with FOR UPDATE lock
+        user_stmt = select(User).where(User.id == user_id).with_for_update()
         user_result = await db.execute(user_stmt)
         user = user_result.scalar_one_or_none()
         
@@ -127,14 +131,15 @@ class StakingService:
             is_active=True
         )
         
-        # Deduct from trading balance
+        # Deduct from trading balance (using locked user instance)
         user.trading_balance -= amount
+        # Update pool total staked (using locked pool instance)
         pool.current_total_staked += amount
         
         # Record transaction
         transaction = Transaction(
             user_id=user_id,
-            transaction_type=TransactionType.COLD_STORAGE_DEPOSIT if False else TransactionType.STAKE,  # STAKE type if exists
+            type=TransactionType.STAKING_DEPOSIT,
             asset_symbol=pool.asset_symbol,
             amount=amount,
             usd_amount=amount,
@@ -177,11 +182,11 @@ class StakingService:
             if position.earned_until_date > datetime.utcnow():
                 raise ValueError("Position is locked until " + position.earned_until_date.isoformat())
         
-        # Calculate total earned
+        # Calculate total earned (exclude CLAIMED rewards as they were already paid out)
         reward_stmt = select(func.sum(StakingReward.amount)).where(
             and_(
                 StakingReward.position_id == position_id,
-                StakingReward.status.in_([RewardStatus.ACCRUED, RewardStatus.PAID, RewardStatus.CLAIMED])
+                StakingReward.status.in_([RewardStatus.ACCRUED, RewardStatus.PAID])
             )
         )
         reward_result = await db.execute(reward_stmt)
@@ -308,6 +313,17 @@ class StakingService:
         
         # Get rewards to claim
         if position_id:
+            # Verify position ownership before claiming rewards
+            position_stmt = select(StakingPosition).where(StakingPosition.id == position_id)
+            position_result = await db.execute(position_stmt)
+            position = position_result.scalar_one_or_none()
+            
+            if not position:
+                raise ValueError("Position not found")
+            
+            if position.user_id != user_id:
+                raise ValueError("You do not have permission to claim rewards for this position")
+            
             rewards_stmt = select(StakingReward).where(
                 and_(
                     StakingReward.position_id == position_id,
