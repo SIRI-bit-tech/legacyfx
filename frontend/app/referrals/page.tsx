@@ -1,133 +1,188 @@
-'use client';
+"use client";
 
-import { DashboardLayout } from '../dashboard-layout';
-import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { API_ENDPOINTS } from '@/constants';
+import { DashboardLayout } from "../dashboard-layout";
+import { useState } from "react";
+import { COLORS } from "@/constants";
+import { useAuth } from "@/hooks/useAuth";
+import { useReferralStats } from "@/hooks/referrals/useReferralStats";
+import { useReferredUsers } from "@/hooks/referrals/useReferredUsers";
+import { useCommissionHistory } from "@/hooks/referrals/useCommissionHistory";
+import { usePayoutHistory } from "@/hooks/referrals/usePayoutHistory";
+import { useLeaderboard } from "@/hooks/referrals/useLeaderboard";
+import { useReferralNotifications } from "@/hooks/referrals/useReferralNotifications";
+import { ReferralLinkCard } from "@/components/referrals/ReferralLinkCard";
+import { TierProgressCard } from "@/components/referrals/TierProgressCard";
+import { ReferralMetrics } from "@/components/referrals/ReferralMetrics";
+import { ReferredUsersTable } from "@/components/referrals/ReferredUsersTable";
+import { CommissionTable } from "@/components/referrals/CommissionTable";
+import { PayoutTable } from "@/components/referrals/PayoutTable";
+import { Leaderboard } from "@/components/referrals/Leaderboard";
 
 export default function ReferralsPage() {
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
+  const { user } = useAuth();
+  const userId = user?.id || "";
 
-  useEffect(() => {
-    loadReferralStats();
-  }, []);
+  useReferralNotifications(userId);
+  const [activeTab, setActiveTab] = useState<
+    "users" | "commissions" | "payouts" | "leaderboard"
+  >("users");
+  const [usersPage, setUsersPage] = useState(1);
+  const [commissionsPage, setCommissionsPage] = useState(1);
+  const [payoutsPage, setPayoutsPage] = useState(1);
 
-  const loadReferralStats = async () => {
-    try {
-      const res = await api.get(API_ENDPOINTS.REFERRALS.STATS);
-      setStats(res);
-    } catch (err) {
-      console.error('Failed to load referral stats:', err);
-      setStats(null);
-      setIsError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { stats, loading: statsLoading } = useReferralStats(userId);
 
-  const referralCode = 'LEGACY_TRADER_123';
-  const referralLink = `https://legacyfx.com/signup?ref=${referralCode}`;
+  const {
+    users,
+    loading: usersLoading,
+    totalPages: usersTotalPages,
+  } = useReferredUsers(userId, { page: usersPage, limit: 20 });
+
+  const {
+    commissions,
+    loading: commissionsLoading,
+    totalPages: commissionsTotalPages,
+  } = useCommissionHistory(userId, { page: commissionsPage, limit: 20 });
+
+  const {
+    payouts,
+    loading: payoutsLoading,
+    totalPages: payoutsTotalPages,
+  } = usePayoutHistory(userId, payoutsPage, 20);
+
+  const { leaders: leaderboardEntries, loading: leaderboardLoading } =
+    useLeaderboard();
+
+  const referralLink = stats?.referral_link || "";
+  const referralCode = stats?.referral_code || "";
+
+  const tabs = [
+    { id: "users", label: "Referred Users", icon: "pi-users" },
+    { id: "commissions", label: "Commission History", icon: "pi-dollar" },
+    { id: "payouts", label: "Payout History", icon: "pi-wallet" },
+    { id: "leaderboard", label: "Leaderboard", icon: "pi-trophy" },
+  ];
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-10 max-w-5xl mx-auto">
-        <header className="mb-12 text-center">
-          <div className="w-20 h-20 bg-color-primary/10 text-color-primary rounded-full flex items-center justify-center text-4xl mb-6 mx-auto border border-color-primary/20">
-             <i className="pi pi-users"></i>
-          </div>
-          <h1 className="text-4xl font-black text-text-primary mb-3">Earn with Friends</h1>
-          <p className="text-text-secondary text-lg max-w-2xl mx-auto">Invite other professional traders to Legacy FX and earn life-time commissions on every trade they execute.</p>
-        </header>
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h1
+            className="text-3xl font-black mb-2"
+            style={{ color: COLORS.textPrimary }}
+          >
+            Referral Program
+          </h1>
+          <p style={{ color: COLORS.textSecondary }}>
+            Invite traders and earn lifetime commissions on their activity
+          </p>
+        </div>
 
-        {/* Share Section */}
-        <div className="bg-bg-secondary border border-color-border p-8 rounded-3xl shadow-2xl mb-12 relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-8 opacity-5">
-              <i className="pi pi-megaphone text-[120px]"></i>
-           </div>
-           
-           <h3 className="text-xl font-bold text-text-primary mb-6">Your Invitation Link</h3>
-           <div className="flex flex-col md:flex-row gap-4 mb-4">
-              <div className="flex-1 bg-bg-tertiary border border-color-border rounded-2xl px-6 py-4 flex items-center justify-between group">
-                 <code className="text-color-primary font-mono text-sm break-all">{referralLink}</code>
-                 <button 
-                  onClick={() => navigator.clipboard.writeText(referralLink)}
-                  className="text-text-tertiary hover:text-text-primary p-2 transition"
-                 >
-                    <i className="pi pi-copy"></i>
-                 </button>
-              </div>
-              <button className="bg-color-primary hover:bg-color-primary-hover text-bg-primary px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition shadow-lg shadow-color-primary/20">
-                 Share Now
+        {/* Referral Link Card */}
+        <div className="mb-6">
+          <ReferralLinkCard
+            referralCode={referralCode}
+            referralLink={referralLink}
+            loading={statsLoading}
+          />
+        </div>
+
+        {/* Tier Progress Card */}
+        <div className="mb-6">
+          <TierProgressCard
+            currentTier={stats?.current_tier || "BRONZE"}
+            totalReferrals={stats?.total_referrals || 0}
+            activeReferrals={stats?.active_referrals || 0}
+            commissionRate={stats?.commission_rate || 10}
+            nextTier={stats?.next_tier || null}
+            nextTierThreshold={stats?.next_tier_threshold || null}
+            loading={statsLoading}
+          />
+        </div>
+
+        {/* Metrics Row */}
+        <div className="mb-8">
+          <ReferralMetrics
+            totalReferrals={stats?.total_referrals || 0}
+            activeReferrals={stats?.active_referrals || 0}
+            totalEarnings={stats?.total_earnings || 0}
+            pendingCommissions={stats?.pending_commissions || 0}
+            loading={statsLoading}
+          />
+        </div>
+
+        {/* Tabs */}
+        <div
+          className="border rounded-2xl overflow-hidden"
+          style={{
+            backgroundColor: COLORS.bgSecondary,
+            borderColor: COLORS.border,
+          }}
+        >
+          {/* Tab Headers */}
+          <div
+            className="flex border-b overflow-x-auto"
+            style={{ borderColor: COLORS.border }}
+          >
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className="flex items-center gap-2 px-6 py-4 font-semibold transition-all whitespace-nowrap"
+                style={{
+                  color:
+                    activeTab === tab.id
+                      ? COLORS.primary
+                      : COLORS.textSecondary,
+                  borderBottom:
+                    activeTab === tab.id
+                      ? `2px solid ${COLORS.primary}`
+                      : "2px solid transparent",
+                }}
+              >
+                <i className={`pi ${tab.icon}`}></i>
+                {tab.label}
               </button>
-           </div>
-           <p className="text-xs text-text-tertiary font-bold uppercase flex items-center gap-2">
-              <i className="pi pi-info-circle"></i> Commissions are paid out daily in USDT
-           </p>
-        </div>
-
-        {/* Error State */}
-        {isError && !loading && (
-          <div className="bg-bg-secondary border border-color-danger p-6 rounded-2xl mb-16">
-            <div className="flex items-center gap-3 mb-2">
-              <i className="pi pi-exclamation-triangle text-color-danger"></i>
-              <h3 className="text-lg font-bold text-text-primary">Unable to Load Referral Stats</h3>
-            </div>
-            <p className="text-sm text-text-tertiary">
-              We couldn't retrieve your referral statistics. Please check your connection and try again later.
-            </p>
+            ))}
           </div>
-        )}
 
-        {/* Stats Grid */}
-        {!isError && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-           {[
-             { label: 'Total Referrals', value: stats?.referral_count || '0', icon: 'pi-user-plus', color: 'text-color-primary' },
-             { label: 'Active Traders', value: stats?.active_referrals || '0', icon: 'pi-chart-line', color: 'text-color-success' },
-             { label: 'Total Earnings', value: stats?.total_earnings ? `$${stats.total_earnings}` : '$0.00', icon: 'pi-dollar', color: 'text-color-warning' },
-           ].map((s, i) => (
-             <div key={i} className="bg-bg-secondary border border-color-border p-8 rounded-2xl flex flex-col items-center text-center shadow-xl">
-                <div className={`w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center text-xl mb-4 ${s.color}`}>
-                   <i className={`pi ${s.icon}`}></i>
-                </div>
-                <p className="text-[10px] text-text-tertiary font-black uppercase tracking-widest mb-1">{s.label}</p>
-                <p className="text-3xl font-black text-text-primary tracking-tight">{s.value}</p>
-             </div>
-           ))}
-        </div>
-        )}
-
-        {/* How it Works */}
-        <div className="space-y-8">
-           <h2 className="text-2xl font-black text-text-primary text-center">Three Steps to Reward</h2>
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                { step: 1, title: 'Send Invite', desc: 'Copy your unique link and share it with your network or social media channels.' },
-                { step: 2, title: 'Registration', desc: 'Your referrals sign up and pass our institutional KYC verification process.' },
-                { step: 3, title: 'Earn Lifetime', desc: 'Receive up to 40% of their trading fees as a rebate directly to your wallet.' },
-              ].map((item) => (
-                <div key={item.step} className="text-center group">
-                   <div className="w-12 h-12 rounded-full border-2 border-color-border flex items-center justify-center font-black text-text-tertiary text-xl mb-4 mx-auto group-hover:border-color-primary group-hover:text-color-primary transition-all">
-                      {item.step}
-                   </div>
-                   <h4 className="font-bold text-text-primary mb-2">{item.title}</h4>
-                   <p className="text-xs text-text-tertiary leading-relaxed px-4">{item.desc}</p>
-                </div>
-              ))}
-           </div>
-        </div>
-
-        {/* leaderboard Link */}
-        <div className="mt-20 border-t border-color-border pt-12 flex flex-col md:flex-row items-center justify-between gap-6 px-4">
-           <div>
-              <h4 className="text-lg font-bold text-text-primary">Global Affiliate Program</h4>
-              <p className="text-sm text-text-tertiary">Join our top 1% affiliates earning over $100k monthly.</p>
-           </div>
-           <button className="bg-bg-tertiary hover:bg-bg-primary border border-color-border text-text-primary px-8 py-3 rounded-2xl font-black text-xs uppercase transition tracking-widest">
-              Join Elite Affiliates <i className="pi pi-chevron-right ml-2 text-[10px]"></i>
-           </button>
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === "users" && (
+              <ReferredUsersTable
+                users={users}
+                loading={usersLoading}
+                page={usersPage}
+                totalPages={usersTotalPages}
+                onPageChange={setUsersPage}
+              />
+            )}
+            {activeTab === "commissions" && (
+              <CommissionTable
+                commissions={commissions}
+                loading={commissionsLoading}
+                page={commissionsPage}
+                totalPages={commissionsTotalPages}
+                onPageChange={setCommissionsPage}
+              />
+            )}
+            {activeTab === "payouts" && (
+              <PayoutTable
+                payouts={payouts}
+                loading={payoutsLoading}
+                page={payoutsPage}
+                totalPages={payoutsTotalPages}
+                onPageChange={setPayoutsPage}
+              />
+            )}
+            {activeTab === "leaderboard" && (
+              <Leaderboard
+                entries={leaderboardEntries}
+                loading={leaderboardLoading}
+              />
+            )}
+          </div>
         </div>
       </div>
     </DashboardLayout>

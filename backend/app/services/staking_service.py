@@ -174,39 +174,50 @@ class StakingService:
         if not position.is_active:
             raise ValueError("Position is not active")
         
-        # Get pool
-        pool = await StakingService.get_pool_by_id(db, position.pool_id)
+        # Get pool with FOR UPDATE lock
+        pool_stmt = select(StakingProduct).where(StakingProduct.id == position.pool_id).with_for_update()
+        pool_result = await db.execute(pool_stmt)
+        pool = pool_result.scalar_one_or_none()
         
         # Check if locked (for fixed terms)
         if pool and pool.lock_period_days and position.earned_until_date:
             if position.earned_until_date > datetime.utcnow():
                 raise ValueError("Position is locked until " + position.earned_until_date.isoformat())
         
-        # Calculate total earned (exclude CLAIMED rewards as they were already paid out)
-        reward_stmt = select(func.sum(StakingReward.amount)).where(
+        # Lock reward rows FOR UPDATE before reading/summing
+        rewards_to_settle_stmt = select(StakingReward).where(
             and_(
                 StakingReward.position_id == position_id,
                 StakingReward.status.in_([RewardStatus.ACCRUED, RewardStatus.PAID])
             )
-        )
-        reward_result = await db.execute(reward_stmt)
-        earned = reward_result.scalar() or 0.0
+        ).with_for_update()
+        rewards_result = await db.execute(rewards_to_settle_stmt)
+        rewards_to_settle = rewards_result.scalars().all()
+        
+        # Calculate total earned from locked rows
+        earned = sum(r.amount for r in rewards_to_settle)
         
         # Total to return
         total_return = position.amount_staked + earned
         
-        # Update user balance
-        user_stmt = select(User).where(User.id == user_id)
+        # Lock user row FOR UPDATE before updating balance
+        user_stmt = select(User).where(User.id == user_id).with_for_update()
         user_result = await db.execute(user_stmt)
         user = user_result.scalar_one_or_none()
         user.trading_balance += total_return
+        
+        # Mark rewards as CLAIMED (they're being paid out with unstake)
+        for reward in rewards_to_settle:
+            if reward.status == RewardStatus.ACCRUED:
+                reward.status = RewardStatus.CLAIMED
+                reward.paid_on_date = datetime.utcnow()
         
         # Update position
         position.is_active = False
         position.closed_at = datetime.utcnow()
         position.total_earned_amount = earned
         
-        # Update pool
+        # Update pool (already locked)
         pool.current_total_staked -= position.amount_staked
         
         await db.commit()
@@ -311,7 +322,7 @@ class StakingService:
     ) -> float:
         """Claim all accrued rewards for user"""
         
-        # Get rewards to claim
+        # Get rewards to claim with FOR UPDATE lock
         if position_id:
             # Verify position ownership before claiming rewards
             position_stmt = select(StakingPosition).where(StakingPosition.id == position_id)
@@ -329,7 +340,7 @@ class StakingService:
                     StakingReward.position_id == position_id,
                     StakingReward.status == RewardStatus.ACCRUED
                 )
-            )
+            ).with_for_update()
         else:
             rewards_stmt = select(StakingReward).where(
                 and_(
@@ -338,7 +349,7 @@ class StakingService:
                     ),
                     StakingReward.status == RewardStatus.ACCRUED
                 )
-            )
+            ).with_for_update()
         
         rewards_result = await db.execute(rewards_stmt)
         rewards = rewards_result.scalars().all()
@@ -353,8 +364,8 @@ class StakingService:
             reward.status = RewardStatus.CLAIMED
             reward.paid_on_date = datetime.utcnow()
         
-        # Add to user balance
-        user_stmt = select(User).where(User.id == user_id)
+        # Lock user row FOR UPDATE before updating balance
+        user_stmt = select(User).where(User.id == user_id).with_for_update()
         user_result = await db.execute(user_stmt)
         user = user_result.scalar_one_or_none()
         user.trading_balance += total_claimed

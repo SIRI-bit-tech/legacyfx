@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     # Trading Configuration
     PRICE_UPDATE_INTERVAL: int = 3000
     ORDER_BOOK_UPDATE_INTERVAL: int = 250
+    TRADING_FEE_PERCENTAGE: float = 0.001  # 0.1% trading fee
 
     # Cloudinary
     CLOUDINARY_CLOUD_NAME: str = ""
@@ -121,6 +122,16 @@ class Settings(BaseSettings):
     SIGNALS_CRYPTO: str = "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT"
     SIGNALS_FOREX: str = "EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD"
     SIGNALS_STOCKS: str = "AAPL,TSLA,MSFT,AMZN,GOOGL,META,NVDA,NFLX"
+
+    # Referral System
+    REFERRAL_BASE_URL: str = "https://legacyfx.com/signup"
+    REFERRAL_TIER2_THRESHOLD: int = 5      # 5 active referrals = tier 2
+    REFERRAL_TIER3_THRESHOLD: int = 20     # 20 active referrals = tier 3
+    REFERRAL_TIER1_RATE: float = 0.10      # 10% commission
+    REFERRAL_TIER2_RATE: float = 0.15      # 15% commission
+    REFERRAL_TIER3_RATE: float = 0.20      # 20% commission
+    REFERRAL_DEPOSIT_COMMISSION_RATE: float = 0.02  # 2% of deposit
+    REFERRAL_PAYOUT_HOUR: int = 0          # Midnight daily payout
 
     model_config = SettingsConfigDict(
         env_file=".env",

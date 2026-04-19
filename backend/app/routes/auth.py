@@ -32,8 +32,11 @@ async def register(
             detail="User with this email already exists"
         )
     
-    # Generate verification code
+    # Generate verification code and referral code
     verification_code = generate_otp()
+    from app.services.referral_service import ReferralService
+    username = request.username or request.email.split('@')[0]
+    new_referral_code = await ReferralService.generate_referral_code(username, db)
     
     # Create new user
     user_id = str(uuid.uuid4())
@@ -47,13 +50,29 @@ async def register(
         status=UserStatus.PENDING_VERIFICATION,
         email_verified=False,
         email_verification_token=verification_code,
-        email_verification_expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-        referral_code=str(uuid.uuid4())[:8].upper(),
+        email_verification_expires_at=datetime.utcnow() + timedelta(minutes=15),
+        referral_code=new_referral_code,
         referred_by=request.referral_code
     )
     
     db.add(new_user)
     await db.commit()
+    
+    # Process referral signup if referral code provided
+    if request.referral_code:
+        try:
+            from app.utils.ably import get_ably_client
+            ably_client = get_ably_client()
+            await ReferralService.process_referral_signup(
+                referred_user_id=user_id,
+                referral_code=request.referral_code,
+                db=db,
+                ably_client=ably_client
+            )
+        except Exception as e:
+            # Log but don't fail registration if referral processing fails
+            import logging
+            logging.error(f"Failed to process referral signup: {e}")
     
     # Send verification email in background
     email_content = create_email_template(
@@ -90,7 +109,7 @@ async def verify_email(
         not user or 
         user.email_verification_token != request.code or 
         not user.email_verification_expires_at or 
-        (user.email_verification_expires_at.replace(tzinfo=timezone.utc) if user.email_verification_expires_at.tzinfo is None else user.email_verification_expires_at) < datetime.now(timezone.utc)
+        user.email_verification_expires_at < datetime.utcnow()
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=generic_error)
         

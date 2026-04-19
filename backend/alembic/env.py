@@ -12,6 +12,7 @@ from app.database import Base
 from app.config import get_settings
 
 # Import all model classes from their respective files to ensure Alembic sees them
+from app.models.admin import Admin
 from app.models.account import Account
 from app.models.asset import Asset
 from app.models.document import Document
@@ -24,9 +25,10 @@ from app.models.mining_stats import MiningStats
 from app.models.settings import SystemSettings
 from app.models.notification import Notification
 from app.models.referral import Referral
+from app.models.copy_trading import CopyTrading, CopyTradeHistory
 from app.models.security import LoginHistory
 from app.models.signals import Signal, SignalHistory, CopiedSignal, SignalAccuracy, SignalCache
-from app.models.staking import StakingPosition
+from app.models.staking import StakingPosition, StakingProduct, StakingReward
 from app.models.support import SupportTicket, TicketMessage
 from app.models.trade import Trade
 from app.models.trading import TradingPair, Order, UserAsset, PriceAlert, ExecutionTrade

@@ -21,14 +21,22 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add STAKING_DEPOSIT and STAKING_WITHDRAWAL to TransactionType enum."""
     
-    # PostgreSQL approach: Create new type, migrate existing values, drop old, rename new
-    op.execute("""
-        ALTER TYPE transactiontype ADD VALUE 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD';
-    """)
+    # Try to add enum values, ignore if they already exist
+    try:
+        op.execute("""
+            ALTER TYPE transactiontype ADD VALUE 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD';
+        """)
+    except Exception:
+        # Value already exists, ignore
+        pass
     
-    op.execute("""
-        ALTER TYPE transactiontype ADD VALUE 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD';
-    """)
+    try:
+        op.execute("""
+            ALTER TYPE transactiontype ADD VALUE 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD';
+        """)
+    except Exception:
+        # Value already exists, ignore
+        pass
 
 
 def downgrade() -> None:
