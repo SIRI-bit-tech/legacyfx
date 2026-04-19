@@ -113,6 +113,29 @@ async def create_order(
     db.add(txn)
     await db.commit()
     
+    # Process referral commission on trading fee
+    try:
+        from app.services.referral_service import ReferralService
+        from app.utils.ably import get_ably_client
+        from app.config import get_settings
+        
+        settings = get_settings()
+        ably_client = get_ably_client()
+        
+        # Calculate trading fee (0.1% default)
+        trading_fee = cost_estimate * settings.TRADING_FEE_PERCENTAGE
+        
+        await ReferralService.process_trade_commission(
+            user_id=current_user.id,
+            trading_fee=trading_fee,
+            db=db,
+            ably_client=ably_client
+        )
+    except Exception as e:
+        # Log but don't fail trade if referral processing fails
+        import logging
+        logging.error(f"Failed to process referral commission: {e}")
+    
     # 6. Publish order update to Ably
     await publish_order_update(current_user.id, {
         "id": order_id,

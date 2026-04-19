@@ -23,6 +23,14 @@ def init_ably():
         logger.error(f"Failed to initialize Ably: {e}")
 
 
+def get_ably_client():
+    """Get or initialize Ably client"""
+    global client
+    if not client:
+        init_ably()
+    return client
+
+
 async def publish_message(channel: str, event: str, data: dict) -> bool:
     """Publish a message to an Ably channel"""
     try:

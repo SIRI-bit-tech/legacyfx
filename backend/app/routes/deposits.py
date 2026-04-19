@@ -145,5 +145,30 @@ async def confirm_deposit(
         )
         db.add(txn)
         
+        # Process referral commissions
+        try:
+            from app.services.referral_service import ReferralService
+            from app.utils.ably import get_ably_client
+            ably_client = get_ably_client()
+            
+            # Activate referral on first deposit
+            await ReferralService.activate_referral(
+                user_id=current_user.id,
+                db=db,
+                ably_client=ably_client
+            )
+            
+            # Process deposit commission
+            await ReferralService.process_deposit_commission(
+                user_id=current_user.id,
+                deposit_amount=usd_value,
+                db=db,
+                ably_client=ably_client
+            )
+        except Exception as e:
+            # Log but don't fail deposit if referral processing fails
+            import logging
+            logging.error(f"Failed to process referral commission: {e}")
+        
     await db.commit()
     return {"message": "Deposit confirmation submitted", "status": deposit.status.value}

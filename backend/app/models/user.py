@@ -57,9 +57,10 @@ class User(Base):
     cold_storage_balance = Column(Float, default=0.0)
     
     # Referral
-    referral_code = Column(String(20), unique=True, index=True)
+    referral_code = Column(String(100), unique=True, index=True)
     referred_by = Column(String(36), nullable=True) 
     referral_earnings = Column(Float, default=0.0)
+    referral_tier = Column(Integer, default=1)  # 1, 2, or 3
     
     # Feature Access
     copy_trading_enabled = Column(Boolean, default=False)

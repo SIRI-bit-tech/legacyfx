@@ -114,8 +114,11 @@ async def is_admin(user: User, db: AsyncSession) -> bool:
     """
     from app.models.admin import Admin, AdminStatus
     
+    # Normalize email for case-insensitive comparison
+    normalized_email = user.email.strip().lower()
+    
     stmt = select(Admin).where(
-        Admin.email == user.email,
+        Admin.email == normalized_email,
         Admin.status == AdminStatus.ACTIVE
     )
     result = await db.execute(stmt)

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 
 export default function SignupPage() {
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -14,9 +16,17 @@ export default function SignupPage() {
     firstName: '',
     lastName: '',
   });
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -46,6 +56,7 @@ export default function SignupPage() {
         username: formData.username,
         first_name: formData.firstName,
         last_name: formData.lastName,
+        referral_code: referralCode || undefined,
       });
       
       setSuccess(true);
@@ -76,7 +87,14 @@ export default function SignupPage() {
       <div className="w-full max-w-md">
         <div className="bg-bg-secondary border border-color-border rounded-lg p-8">
           <h1 className="font-display text-3xl font-bold text-text-primary mb-2">Create Account</h1>
-          <p className="text-text-secondary mb-8">Join Legacy FX today</p>
+          <p className="text-text-secondary mb-8">
+            Join Legacy FX today
+            {referralCode && (
+              <span className="block text-color-primary text-sm mt-1">
+                Referred by: {referralCode}
+              </span>
+            )}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

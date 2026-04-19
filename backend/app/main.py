@@ -40,7 +40,7 @@ from app.routes import (
     auth, users, trading, markets, deposits, funds,
     withdrawals, investments, mining, staking,
     signals, subscriptions, admin, copy_trading, ably, transactions,
-    real_estate, cold_storage
+    real_estate, cold_storage, referrals
 )
 
 settings = get_settings()
@@ -54,6 +54,11 @@ async def lifespan(app: FastAPI):
     # Start Background Tasks
     from app.tasks.mining_updater import start_mining_background_tasks
     start_mining_background_tasks()
+    
+    # Start Referral Payout Scheduler
+    from app.tasks.referral_payout_scheduler import start_scheduler as start_referral_scheduler
+    start_referral_scheduler()
+    logger.info("Referral payout scheduler started")
     
     # Start Price Broadcast Service
     from app.services.price_broadcast import price_broadcast_service
@@ -76,6 +81,10 @@ async def lifespan(app: FastAPI):
     from app.tasks.mining_updater import scheduler
     if scheduler.running:
         scheduler.shutdown(wait=True)
+    
+    # Stop Referral Payout Scheduler
+    from app.tasks.referral_payout_scheduler import stop_scheduler as stop_referral_scheduler
+    stop_referral_scheduler()
     
     # Stop Price Broadcast Service
     from app.services.price_broadcast import price_broadcast_service
@@ -137,6 +146,7 @@ app.include_router(admin.router)
 app.include_router(ably.router)
 app.include_router(real_estate.router)
 app.include_router(cold_storage.router)
+app.include_router(referrals.router)
 
 from fastapi.staticfiles import StaticFiles
 import os
