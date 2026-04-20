@@ -69,6 +69,7 @@ async def register(
                 db=db,
                 ably_client=ably_client
             )
+            await db.commit()
         except Exception as e:
             # Log but don't fail registration if referral processing fails
             import logging

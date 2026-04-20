@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean, Enum, Integer, Numeric, Date
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Boolean, Enum, Integer, Numeric, Date, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -32,7 +32,7 @@ class Referral(Base):
     
     id = Column(String(36), primary_key=True, index=True)
     referrer_id = Column(String(36), ForeignKey(USERS_ID), nullable=False, index=True)
-    referred_id = Column(String(36), ForeignKey(USERS_ID), nullable=False, index=True)
+    referred_id = Column(String(36), ForeignKey(USERS_ID), nullable=False, index=True, unique=True)
     referral_code = Column(String(100), nullable=False, index=True)
     status = Column(Enum(ReferralStatus), default=ReferralStatus.PENDING, nullable=False)
     joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -61,6 +61,9 @@ class ReferralCommission(Base):
 
 class ReferralPayout(Base):
     __tablename__ = "referral_payouts"
+    __table_args__ = (
+        UniqueConstraint('referrer_id', 'payout_date', name='uq_referral_payout_user_date'),
+    )
     
     id = Column(String(36), primary_key=True, index=True)
     referrer_id = Column(String(36), ForeignKey(USERS_ID), nullable=False, index=True)

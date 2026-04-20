@@ -56,6 +56,18 @@ class ReferralService:
         if not referrer:
             logger.warning(f"Invalid referral code: {referral_code}")
             return None
+            
+        # Prevent self-referral
+        if referrer.id == referred_user_id:
+            logger.warning(f"Self-referral attempt blocked for user: {referred_user_id}")
+            return None
+            
+        # Check for existing referral for this user
+        stmt = select(Referral).where(Referral.referred_id == referred_user_id)
+        result = await db.execute(stmt)
+        if result.scalar_one_or_none():
+            logger.warning(f"Duplicate referral signup blocked for user: {referred_user_id}")
+            return None
         
         # Create Referral record
         referral = Referral(
@@ -308,13 +320,14 @@ class ReferralService:
     @staticmethod
     async def run_daily_payout(db: AsyncSession, ably_client=None):
         """Run daily payout - aggregate pending commissions and credit balances"""
-        yesterday = date.today() - timedelta(days=1)
+        yesterday = (datetime.utcnow() - timedelta(days=1)).date()
+        current_date = datetime.utcnow().date()
         
-        # Get all pending commissions from yesterday
+        # Get all pending commissions from yesterday using FOR UPDATE SKIP LOCKED for concurrency safety
         stmt = select(ReferralCommission).where(
             ReferralCommission.status == CommissionStatus.PENDING,
             func.date(ReferralCommission.earned_at) <= yesterday
-        )
+        ).with_for_update(skip_locked=True)
         result = await db.execute(stmt)
         pending_commissions = result.scalars().all()
         
@@ -326,8 +339,9 @@ class ReferralService:
             referrer_commissions[comm.referrer_id].append(comm)
         
         # Process each referrer
+        payouts_to_notify = []
         for referrer_id, commissions in referrer_commissions.items():
-            total_amount = sum(c.commission_amount for c in commissions)
+            total_amount = sum((c.commission_amount for c in commissions), Decimal('0'))
             
             # Create payout record
             payout = ReferralPayout(
@@ -336,7 +350,7 @@ class ReferralService:
                 total_amount=total_amount,
                 commission_count=len(commissions),
                 status=PayoutStatus.COMPLETED,
-                payout_date=date.today(),
+                payout_date=current_date,
                 paid_at=datetime.utcnow()
             )
             
@@ -347,44 +361,57 @@ class ReferralService:
                 comm.status = CommissionStatus.PAID
                 comm.paid_at = datetime.utcnow()
             
-            # Credit user balance
-            user_stmt = select(User).where(User.id == referrer_id)
-            user_result = await db.execute(user_stmt)
-            user = user_result.scalar_one_or_none()
+            # Atomic credit to user balance (prevents race conditions)
+            from sqlalchemy import update
+            user_update_stmt = (
+                update(User)
+                .where(User.id == referrer_id)
+                .values(
+                    trading_balance=User.trading_balance + total_amount,
+                    referral_earnings=User.referral_earnings + total_amount
+                )
+            )
+            await db.execute(user_update_stmt)
             
-            if user:
-                user.trading_balance += float(total_amount)
-                user.referral_earnings += float(total_amount)
+            # Store data for notification after commit
+            payouts_to_notify.append({
+                "referrer_id": referrer_id,
+                "amount": total_amount,
+                "count": len(commissions)
+            })
             
-            # Publish to Ably
-            if ably_client:
+            logger.info(f"Scheduled payout for {referrer_id}: ${total_amount}")
+        
+        await db.commit()
+        
+        # Publish notifications only AFTER successful commit
+        if ably_client:
+            for p in payouts_to_notify:
                 try:
                     # Referrals channel
-                    ref_channel = ably_client.channels.get(f"referrals:{referrer_id}")
+                    ref_channel = ably_client.channels.get(f"referrals:{p['referrer_id']}")
                     await ref_channel.publish("payout_completed", {
                         "type": "payout_completed",
-                        "amount": float(total_amount),
-                        "commission_count": len(commissions),
+                        "amount": float(p['amount']), # Float only for JSON serialization in the message
+                        "commission_count": p['count'],
                         "timestamp": datetime.utcnow().isoformat()
                     })
                     
                     # Funds channel (for assets page update)
-                    funds_channel = ably_client.channels.get(f"funds:{referrer_id}")
+                    funds_channel = ably_client.channels.get(f"funds:{p['referrer_id']}")
                     await funds_channel.publish("balance_updated", {
                         "type": "referral_payout",
-                        "amount": float(total_amount),
+                        "amount": float(p['amount']),
                         "timestamp": datetime.utcnow().isoformat()
                     })
                 except Exception as e:
-                    logger.error(f"Failed to publish payout events: {e}")
-            
-            logger.info(f"Payout completed for {referrer_id}: ${total_amount}")
+                    logger.error(f"Failed to publish payout events for {p['referrer_id']}: {e}")
         
         await db.commit()
         logger.info(f"Daily payout completed: {len(referrer_commissions)} referrers processed")
         
         # Return summary
-        total_paid = sum(sum(c.commission_amount for c in comms) for comms in referrer_commissions.values())
+        total_paid = sum((sum((c.commission_amount for c in comms), Decimal('0')) for comms in referrer_commissions.values()), Decimal('0'))
         return {
             "payouts_processed": len(referrer_commissions),
             "total_amount": float(total_paid)

@@ -12,6 +12,8 @@ from app.database import async_session
 from app.services.referral_service import ReferralService
 from app.utils.ably import get_ably_client
 from app.config import get_settings
+from datetime import datetime
+from pytz import UTC
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -44,13 +46,16 @@ def start_scheduler():
     """Start the APScheduler for referral payouts."""
     payout_hour = settings.REFERRAL_PAYOUT_HOUR
     
-    # Schedule daily payout at configured hour (default midnight)
+    # Schedule daily payout at configured hour (default midnight) in UTC
     scheduler.add_job(
         run_daily_payout,
-        trigger=CronTrigger(hour=payout_hour, minute=0),
+        trigger=CronTrigger(hour=payout_hour, minute=0, timezone=UTC),
         id="daily_referral_payout",
         name="Daily Referral Payout",
-        replace_existing=True
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600 # 1 hour grace time
     )
     
     scheduler.start()

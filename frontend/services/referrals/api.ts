@@ -10,8 +10,18 @@ export const referralsApi = {
   getCommissions: (params: { page?: number; limit?: number; status?: string }) =>
     api.get('/referrals/commissions', { params }),
   
-  getPayouts: (params: { page?: number; limit?: number }) =>
-    api.get('/referrals/payouts', { params }),
+  getPayouts: async (params: { page?: number; limit?: number }) => {
+    const response = await api.get('/referrals/payouts', { params });
+    return {
+      ...response,
+      payouts: (response.payouts || []).map((payout: any) => ({
+        ...payout,
+        amount: Number(payout.total_amount),
+        created_at: payout.payout_date,
+        transaction_hash: null
+      }))
+    };
+  },
   
   getLeaderboard: () => api.get('/referrals/leaderboard'),
 };
