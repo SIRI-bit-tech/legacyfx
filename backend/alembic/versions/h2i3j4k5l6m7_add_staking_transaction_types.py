@@ -21,20 +21,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add STAKING_DEPOSIT and STAKING_WITHDRAWAL to TransactionType enum."""
     
-    # Try to add enum values outside established transactions
-    try:
-        with op.get_context().autocommit_block():
-            op.execute("ALTER TYPE transactiontype ADD VALUE 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD'")
-    except Exception:
-        # Value already exists, ignore
-        pass
-    
-    try:
-        with op.get_context().autocommit_block():
-            op.execute("ALTER TYPE transactiontype ADD VALUE 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD'")
-    except Exception:
-        # Value already exists, ignore
-        pass
+    # Add enum values outside established transactions using native idempotent checks
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD'")
+        op.execute("ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD'")
 
 
 def downgrade() -> None:
