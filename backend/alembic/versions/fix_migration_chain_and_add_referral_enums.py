@@ -46,18 +46,10 @@ def upgrade() -> None:
         # Type already exists, ignore
         pass
 
-    # Handle staking transaction types that might already exist
-    try:
-        op.execute("ALTER TYPE transactiontype ADD VALUE 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD'")
-    except Exception:
-        # Value already exists, ignore
-        pass
-    
-    try:
-        op.execute("ALTER TYPE transactiontype ADD VALUE 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD'")
-    except Exception:
-        # Value already exists, ignore
-        pass
+    # Handle staking transaction types outside of a transaction block
+    with op.get_context().autocommit_block():
+        op.execute("ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS 'STAKING_DEPOSIT' BEFORE 'STAKING_REWARD'")
+        op.execute("ALTER TYPE transactiontype ADD VALUE IF NOT EXISTS 'STAKING_WITHDRAWAL' BEFORE 'STAKING_REWARD'")
 
 
 def downgrade() -> None:
