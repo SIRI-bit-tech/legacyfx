@@ -44,7 +44,8 @@ def upgrade() -> None:
     op.drop_column('referrals', 'commission_earned')
     op.drop_column('referrals', 'commission_rate')
     op.drop_column('referrals', 'is_active')
-    op.add_column('staking_positions', sa.Column('usd_value_at_staking', sa.Float(), nullable=False))
+    op.add_column('staking_positions', sa.Column('usd_value_at_staking', sa.Float(), nullable=False, server_default='0'))
+    op.alter_column('staking_positions', 'usd_value_at_staking', server_default=None)
     op.alter_column('staking_positions', 'status',
                existing_type=postgresql.ENUM('ACTIVE', 'UNSTAKING', 'COMPLETED', name='stakingstatus'),
                nullable=False)

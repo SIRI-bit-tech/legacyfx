@@ -55,7 +55,8 @@ def upgrade() -> None:
             sa.Column('payout_date', sa.Date(), nullable=False),
             sa.Column('paid_at', sa.DateTime(), nullable=True),
             sa.Column('created_at', sa.DateTime(), nullable=False),
-            sa.PrimaryKeyConstraint('id')
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('referrer_id', 'payout_date', name='uq_referral_payout_user_date')
         )
         op.create_index(op.f('ix_referral_payouts_id'), 'referral_payouts', ['id'], unique=False)
         op.create_foreign_key('fk_referral_payouts_referrer_id', 'referral_payouts', 'users', ['referrer_id'], ['id'])
