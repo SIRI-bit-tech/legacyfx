@@ -72,7 +72,13 @@ export function useAuth() {
   const refreshUser = async () => {
     try {
       const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
-      if (!token) return;
+      if (!token) {
+        // Clear stale auth state when token is missing
+        api.setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+        return;
+      }
 
       const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
 
@@ -89,8 +95,19 @@ export function useAuth() {
 
       setUser(userData);
       setIsAuthenticated(true);
-    } catch (err) {
-      console.error('Failed to refresh user data:', err);
+    } catch (err: any) {
+      // Handle auth failures (401/403 or any non-2xx response)
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        // Clear stale auth state for unauthorized responses
+        api.setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+
+      // Only log safe, non-sensitive messages
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Auth refresh failed:', err?.response?.status || 'network error');
+      }
     }
   };
 

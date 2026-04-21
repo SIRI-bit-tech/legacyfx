@@ -12,6 +12,7 @@ from app.models.mining import MiningPlan, MiningSubscription, MiningStatus
 from app.models.settings import SystemSettings
 from app.models.mining_stats import MiningStats
 from app.utils.auth import get_current_user
+from app.utils.tier_auth import require_pro_or_higher
 from app.schemas.mining import MiningPlanResponse
 from pydantic import BaseModel
 
@@ -115,7 +116,7 @@ async def get_all_mining_stats(db: AsyncSession = Depends(get_db)):
 @router.post("/subscribe", response_model=MiningResponse)
 async def subscribe_mining(
     request: MineRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_pro_or_higher),
     db: AsyncSession = Depends(get_db)
 ):
     """Subscribe to a cloud mining plan (Starts as PENDING)."""

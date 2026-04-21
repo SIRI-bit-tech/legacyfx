@@ -6,6 +6,7 @@ from typing import Annotated
 from app.database import get_db
 from app.models.user import User
 from app.utils.auth import get_current_user
+from app.utils.tier_auth import require_elite_or_higher
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/api/v1/cold-storage", tags=["cold-storage"])
 
 @router.get("/vault", response_model=ColdStorageVaultResponse)
 async def get_vault(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_elite_or_higher)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Get user's cold storage vault data."""
@@ -48,7 +49,7 @@ async def get_vault(
 @router.post("/deposit", response_model=DepositToColdStorageResponse)
 async def deposit_to_vault(
     request: DepositToColdStorageRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_elite_or_higher)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Move funds from trading account to cold storage."""
@@ -73,7 +74,7 @@ async def deposit_to_vault(
 @router.post("/withdraw", response_model=WithdrawFromColdStorageResponse)
 async def withdraw_from_vault(
     request: WithdrawFromColdStorageRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_elite_or_higher)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Move funds from cold storage to trading account."""
@@ -100,7 +101,7 @@ async def withdraw_from_vault(
 @router.post("/toggle-lock", response_model=ToggleColdStorageLockResponse)
 async def toggle_vault_lock(
     request: ToggleColdStorageLockRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_elite_or_higher)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Toggle vault lock status."""

@@ -39,8 +39,19 @@ export default function AdminSubscriptionsPage() {
   const handleApproveConfirm = async (days: string) => {
     if (!promptModal.id) return;
     
-    const daysNum = Number.parseInt(days) || 30;
-    if (Number.isNaN(daysNum)) return;
+    // Strict validation: only positive integers allowed
+    if (!/^\d+$/.test(days.trim())) {
+      alert('Invalid duration: Please enter a positive number (e.g., 30, 60, 90)');
+      return;
+    }
+    
+    const daysNum = Number.parseInt(days.trim(), 10);
+    
+    // Reject zero or negative values (though regex should prevent this)
+    if (daysNum <= 0) {
+      alert('Invalid duration: Duration must be greater than 0 days');
+      return;
+    }
 
     setProcessing(promptModal.id);
     setPromptModal({ isOpen: false, id: null });

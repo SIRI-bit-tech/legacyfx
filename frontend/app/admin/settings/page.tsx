@@ -63,8 +63,8 @@ export default function AdminSettingsPage() {
 
       await adminSettingsApi.update(updateData);
 
-      // Specifically update mining if it has values (uses a separate endpoint usually)
-      if (settings.miningWallet) {
+      // Update mining wallet (allow empty string to clear the backend value)
+      if (settings.miningWallet !== undefined) {
         await adminSettingsApi.updateMining(settings.miningWallet, settings.miningQR);
       }
 

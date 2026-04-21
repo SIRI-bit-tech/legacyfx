@@ -18,7 +18,7 @@ export default function StakePage() {
   const loadStakingData = async () => {
     try {
       const [prodRes, myRes, statsRes] = await Promise.all([
-        api.get(API_ENDPOINTS.STAKING.PRODUCTS).catch(() => []),
+        api.get(API_ENDPOINTS.STAKING.POOLS).catch(() => []),
         api.get(API_ENDPOINTS.STAKING.POSITIONS).catch(() => []),
         api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null)
       ]);

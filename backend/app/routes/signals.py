@@ -9,6 +9,7 @@ from app.models.signals import Signal, SignalHistory, CopiedSignal, CopyStatus, 
 from app.models.admin import Admin
 from app.utils.auth import get_current_user
 from app.utils.admin_auth import get_current_admin
+from app.utils.tier_auth import require_legacy_master
 from app.schemas.signals import SignalResponse, SignalStats, SignalHistoryResponse, CopiedSignalResponse, CopySignalRequest
 from app.services.signals_service import SignalsService
 
@@ -150,7 +151,7 @@ async def get_signal_detail(
 async def copy_signal(
     signal_id: str,
     req: CopySignalRequest,
-    current_user: Annotated[Any, Depends(get_current_user)],
+    current_user: Annotated[Any, Depends(require_legacy_master)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     """Copy a signal to user profile with optional trade redirect."""

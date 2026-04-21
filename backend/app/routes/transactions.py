@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -11,16 +11,38 @@ from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
 
+MAX_PAGE_SIZE = 100
+
 @router.get("/")
 async def list_transactions(
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    per_page: int = Query(50, ge=1, le=MAX_PAGE_SIZE, description="Items per page (max 100)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all transactions for the current user (ledger)."""
-    stmt = select(Transaction).where(Transaction.user_id == current_user.id).order_by(Transaction.created_at.desc())
+    """List paginated transactions for the current user (ledger)."""
+    # Validate per_page against cap
+    per_page = min(per_page, MAX_PAGE_SIZE)
+    
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Build paginated query
+    stmt = select(Transaction).where(
+        Transaction.user_id == current_user.id
+    ).order_by(
+        Transaction.created_at.desc()
+    ).limit(per_page).offset(offset)
+    
     result = await db.execute(stmt)
     txs = result.scalars().all()
-    return txs
+    
+    return {
+        "items": txs,
+        "page": page,
+        "per_page": per_page,
+        "has_more": len(txs) == per_page
+    }
 
 
 def map_deposit_status(status: DepositStatus) -> str:
