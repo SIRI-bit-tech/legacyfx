@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update
+import sqlalchemy as sa
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
@@ -10,7 +11,10 @@ from app.database import get_db
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.asset import Asset
-from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus, Transaction, TransactionType
+from app.models.finance import (
+    Deposit, Withdrawal, DepositStatus, WithdrawalStatus, 
+    Transaction, TransactionType, UserSubscription, SubscriptionPlan
+)
 from app.models.deposit_addresses import DepositAddress
 from app.models.mining import MiningPlan, MiningSubscription, MiningStatus
 from app.models.settings import SystemSettings
@@ -224,6 +228,138 @@ async def approve_mining_subscription(
     
     await db.commit()
     return {"message": "Subscription approved. Mining has started."}
+
+@router.get("/subscriptions")
+async def list_user_subscriptions(
+    status: Optional[str] = "PENDING",
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """List general user subscriptions for admin review."""
+    stmt = select(UserSubscription, SubscriptionPlan, User.email).join(
+        SubscriptionPlan, UserSubscription.plan_id == sa.cast(SubscriptionPlan.id, sa.String)
+    ).join(User, UserSubscription.user_id == sa.cast(User.id, sa.String))
+    
+    if status:
+        stmt = stmt.where(UserSubscription.status == status)
+        
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    return [
+        {
+            "id": s.id,
+            "user_email": email,
+            "plan_id": p.id,
+            "plan_name": p.name,
+            "price": p.price,
+            "status": s.status,
+            "created_at": s.started_at
+        } for s, p, email in rows
+    ]
+
+@router.post("/subscriptions/{sub_id}/approve")
+async def approve_user_subscription(
+    sub_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(30, description="Subscription duration in days"),
+    _ = Depends(require_admin)
+):
+    """Approve a pending subscription request and unlock user features/tier."""
+    stmt = select(UserSubscription, User, SubscriptionPlan).join(
+        User, sa.cast(UserSubscription.user_id, sa.String) == sa.cast(User.id, sa.String)
+    ).join(
+        SubscriptionPlan, sa.cast(UserSubscription.plan_id, sa.String) == sa.cast(SubscriptionPlan.id, sa.String)
+    ).where(UserSubscription.id == sub_id)
+    
+    result = await db.execute(stmt)
+    row = result.one_or_none()
+    
+    if not row:
+        raise HTTPException(status_code=404, detail="Subscription request not found")
+        
+    sub, user, plan = row
+    
+    if sub.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Subscription is not in pending state")
+        
+    # 1. Update Subscription Status
+    sub.status = "ACTIVE"
+    sub.started_at = datetime.utcnow()
+    sub.expires_at = datetime.utcnow() + timedelta(days=days)
+    
+    # 2. Update User Tier based on plan name
+    plan_name = plan.name.upper()
+    from app.models.user import UserTier
+    if "LEGACY MASTER" in plan_name:
+        user.tier = UserTier.LEGACY_MASTER
+    elif "ELITE" in plan_name:
+        user.tier = UserTier.ELITE
+    elif "PRO" in plan_name:
+        user.tier = UserTier.PRO
+    else:
+        user.tier = UserTier.BASIC
+        
+    # 3. Update related Transaction status
+    tx_stmt = select(Transaction).where(
+        Transaction.reference_id == sub.id,
+        Transaction.type == TransactionType.SUBSCRIPTION_REQUEST
+    )
+    tx_result = await db.execute(tx_stmt)
+    tx = tx_result.scalar_one_or_none()
+    if tx:
+        tx.status = "COMPLETED"
+        tx.type = TransactionType.SUBSCRIPTION_PAYMENT
+
+    await db.commit()
+    
+    # 4. Send activation email to user
+    from app.utils.email import send_email, create_email_template
+    expiry_date = sub.expires_at.strftime("%B %d, %Y")
+    email_content = create_email_template(
+        title="Subscription Activated",
+        message=f"Your {plan.name} subscription is now active! Your plan will expire on {expiry_date}. Enjoy all the premium features.",
+        code=None
+    )
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        f"Your {plan.name} Plan is Now Active - Legacy FX",
+        email_content
+    )
+    
+    return {"message": f"Subscription approved. User tier updated to {user.tier}.", "expires_at": sub.expires_at}
+
+@router.post("/subscriptions/{sub_id}/decline")
+async def decline_user_subscription(
+    sub_id: str,
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """Decline a pending subscription request."""
+    stmt = select(UserSubscription).where(UserSubscription.id == sub_id)
+    result = await db.execute(stmt)
+    sub = result.scalar_one_or_none()
+    
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription request not found")
+        
+    sub.status = "REJECTED"
+    
+    # Update related Transaction
+    tx_stmt = select(Transaction).where(
+        Transaction.reference_id == sub.id,
+        Transaction.type == TransactionType.SUBSCRIPTION_REQUEST
+    )
+    tx_result = await db.execute(tx_stmt)
+    tx = tx_result.scalar_one_or_none()
+    if tx:
+        tx.status = "REJECTED"
+
+    await db.commit()
+    return {"message": "Subscription request declined"}
+
 
 class MiningSettingsUpdateRequest(BaseModel):
     wallet_id: str
@@ -521,9 +657,18 @@ async def get_all_settings(db: AsyncSession = Depends(get_db), _ = Depends(requi
 
 @router.patch("/settings")
 async def update_settings(settings_dict: dict, db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
-    """Batch update system settings."""
+    """Batch update or insert system settings."""
     for key, value in settings_dict.items():
-        stmt = update(SystemSettings).where(SystemSettings.key == key).values(value=str(value))
-        await db.execute(stmt)
+        # Check if setting exists
+        stmt = select(SystemSettings).where(SystemSettings.key == key)
+        result = await db.execute(stmt)
+        record = result.scalar_one_or_none()
+        
+        if record:
+            record.value = str(value)
+        else:
+            # Create new setting if it doesn't exist
+            db.add(SystemSettings(id=str(uuid.uuid4()), key=key, value=str(value)))
+            
     await db.commit()
     return {"message": "Settings updated successfully"}

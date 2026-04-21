@@ -16,10 +16,11 @@ const NAV_ITEMS = [
   { href: '/admin/orders', label: 'Orders', icon: 'pi-receipt' },
   { href: '/admin/staking', label: 'Staking', icon: 'pi-money-bill' },
   { href: '/admin/mining', label: 'Mining', icon: 'pi-server' },
+  { href: '/admin/subscriptions', label: 'Subscriptions', icon: 'pi-star' },
   { href: '/admin/settings', label: 'Settings', icon: 'pi-cog' },
 ];
 
-export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AdminSidebar({ open, onClose }: Readonly<{ open: boolean; onClose: () => void }>) {
   const pathname = usePathname();
   const { logout } = useAdminAuth();
 
@@ -48,7 +49,7 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
             }`}
           >
             <i className={`pi ${item.icon} text-sm w-4 text-center`} />
-            {item.label}
+            <span>{item.label}</span>
           </Link>
         ))}
       </nav>
@@ -60,7 +61,7 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-color-danger hover:bg-color-danger/10 transition-colors"
         >
           <i className="pi pi-sign-out text-sm w-4 text-center" />
-          Logout
+          <span>Logout</span>
         </button>
       </div>
     </div>
@@ -75,8 +76,10 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
 
       {/* Mobile drawer backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden cursor-default w-full h-full border-none outline-none"
           onClick={onClose}
         />
       )}

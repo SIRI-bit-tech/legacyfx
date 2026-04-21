@@ -30,6 +30,7 @@ class TransactionType(str, enum.Enum):
     INVESTMENT_RETURN = "INVESTMENT_RETURN"
     REFERRAL_COMMISSION = "REFERRAL_COMMISSION"
     SUBSCRIPTION_PAYMENT = "SUBSCRIPTION_PAYMENT"
+    SUBSCRIPTION_REQUEST = "SUBSCRIPTION_REQUEST"
     COLD_STORAGE_DEPOSIT = "COLD_STORAGE_DEPOSIT"
     COLD_STORAGE_WITHDRAWAL = "COLD_STORAGE_WITHDRAWAL"
 
@@ -124,7 +125,8 @@ class UserSubscription(Base):
     id = Column(String(36), primary_key=True, index=True)
     user_id = Column(String(36), index=True, nullable=False)
     plan_id = Column(String(36), nullable=False)
-    status = Column(String(20), default="ACTIVE") # ACTIVE, CANCELLED, EXPIRED
+    status = Column(String(20), default="PENDING") # PENDING, ACTIVE, CANCELLED, EXPIRED, REJECTED
+    payment_proof = Column(String(255), nullable=True) # Optional link or reference
     started_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     auto_renew = Column(Boolean, default=True)

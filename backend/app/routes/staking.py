@@ -31,6 +31,7 @@ router = APIRouter(prefix="/api/v1/staking", tags=["staking"])
 # ============================================================================
 
 @router.get("/pools", response_model=List[StakingPoolResponse])
+@router.get("/products", response_model=List[StakingPoolResponse], include_in_schema=False)
 async def list_staking_pools(
     staking_type: Optional[StakingType] = Query(None, description="Filter by staking type (FLEXIBLE, FIXED_30, FIXED_90, FIXED_180)"),
     db: AsyncSession = Depends(get_db)
@@ -102,6 +103,7 @@ async def create_stake(
 
 
 @router.get("/stakes", response_model=List[StakingPositionResponse])
+@router.get("/my-staking", response_model=List[StakingPositionResponse], include_in_schema=False)
 async def get_user_stakes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

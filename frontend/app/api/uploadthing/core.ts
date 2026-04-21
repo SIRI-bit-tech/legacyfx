@@ -1,5 +1,4 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { getAdminToken } from "@/lib/adminApi";
 
 const f = createUploadthing();
 
@@ -9,15 +8,32 @@ export const ourFileRouter = {
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }: { req: Request }) => {
-      const token = getAdminToken();
-      if (!token) throw new Error("Unauthorized");
-      return { token };
+      try {
+        // Manual cookie parsing from headers (more stable in middleware)
+        const cookieHeader = req.headers.get("cookie") || "";
+        const token = cookieHeader
+          .split("; ")
+          .find(row => row.startsWith("admin_token="))
+          ?.split("=")[1];
+
+        console.log("Upload auth check. Token found:", !!token);
+
+        if (!token) {
+          throw new Error("Unauthorized: Admin session not found. Please log out and in again.");
+        }
+
+        return { token };
+      } catch (err: any) {
+        console.error("UPLOADTHING_MIDDLEWARE_ERROR:", err.message);
+        throw err;
+      }
     })
-    .onUploadComplete(async ({ metadata, file }: { metadata: { token: string }; file: { url: string } }) => {
+    .onUploadComplete(async ({ metadata, file }: { metadata: { token: string }; file: { appUrl?: string; url?: string; ufsUrl?: string } }) => {
       console.log("Upload complete for token:", metadata.token);
-      console.log("file url", file.url);
-      return { uploadedBy: metadata.token, url: file.url };
+      const fileUrl = file.ufsUrl || file.url;
+      console.log("file url", fileUrl);
+      return { uploadedBy: "admin", url: fileUrl };
     }),
 } satisfies FileRouter;
- 
+
 export type OurFileRouter = typeof ourFileRouter;

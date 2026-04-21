@@ -60,54 +60,55 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        <header className="mb-10 flex justify-between items-end">
+      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 lg:py-10">
+        <header className="mb-6 lg:mb-10 flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
           <div>
-            <h1 className="text-4xl font-black text-text-primary mb-2">Trader Dashboard</h1>
-            <p className="text-text-secondary">Welcome back. Here is what is happening with your portfolio today.</p>
+            <h1 className="text-2xl lg:text-4xl font-black text-text-primary mb-2">Trader Dashboard</h1>
+            <p className="text-sm lg:text-base text-text-secondary">Welcome back. Here is what is happening with your portfolio today.</p>
           </div>
-          <div className="hidden md:block text-right relative">
+          <div className="text-right relative w-full lg:w-auto">
              <p className="text-[10px] text-text-tertiary font-bold uppercase mb-1">System Status</p>
              <div 
-               className="flex items-center gap-2 text-color-success text-xs font-bold cursor-pointer hover:opacity-80 transition"
+               className="flex items-center gap-2 text-color-success text-xs font-bold cursor-pointer hover:opacity-80 transition justify-end lg:justify-start"
                onClick={() => setNetworkStatusExpanded(!networkStatusExpanded)}
              >
-                <i className="pi pi-circle-fill text-[8px]"></i> Operational
+                <i className="pi pi-circle-fill text-[8px]"></i>
+                <span className="hidden sm:inline">Operational</span>
                 <i className={`pi pi-chevron-${networkStatusExpanded ? 'up' : 'down'} text-[8px]`}></i>
              </div>
              {networkStatusExpanded && (
-               <div className="absolute right-0 top-full mt-2 bg-bg-secondary border border-color-border rounded-lg p-3 shadow-xl z-10 min-w-[220px]">
+               <div className="absolute right-0 top-full mt-2 bg-bg-secondary border border-color-border rounded-lg p-3 shadow-xl z-10 min-w-[200px] lg:min-w-[220px]">
                  <div className="space-y-2">
-                   <div className="flex items-center justify-between text-[11px]">
+                   <div className="flex items-center justify-between text-[10px] lg:text-[11px] flex-col lg:flex-row gap-1 lg:gap-2">
                      <span className="text-text-secondary">ETH Mainnet</span>
                      <div className="flex items-center gap-2">
-                       <span className="text-text-tertiary">Gas: 12 Gwei</span>
+                       <span className="text-text-tertiary text-xs lg:text-sm">Gas: 12 Gwei</span>
                        <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
-                       <span className="text-color-success font-bold">Live</span>
+                       <span className="text-color-success font-bold text-xs lg:text-sm">Live</span>
                      </div>
                    </div>
-                   <div className="flex items-center justify-between text-[11px]">
+                   <div className="flex items-center justify-between text-[10px] lg:text-[11px] flex-col lg:flex-row gap-1 lg:gap-2">
                      <span className="text-text-secondary">BTC Network</span>
                      <div className="flex items-center gap-2">
-                       <span className="text-text-tertiary">Mempool: Normal</span>
+                       <span className="text-text-tertiary text-xs lg:text-sm">Mempool: Normal</span>
                        <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
-                       <span className="text-color-success font-bold">Live</span>
+                       <span className="text-color-success font-bold text-xs lg:text-sm">Live</span>
                      </div>
                    </div>
-                   <div className="flex items-center justify-between text-[11px]">
+                   <div className="flex items-center justify-between text-[10px] lg:text-[11px] flex-col lg:flex-row gap-1 lg:gap-2">
                      <span className="text-text-secondary">BSC</span>
                      <div className="flex items-center gap-2">
-                       <span className="text-text-tertiary">Congestion: Low</span>
+                       <span className="text-text-tertiary text-xs lg:text-sm">Congestion: Low</span>
                        <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
-                       <span className="text-color-success font-bold">Live</span>
+                       <span className="text-color-success font-bold text-xs lg:text-sm">Live</span>
                      </div>
                    </div>
-                   <div className="flex items-center justify-between text-[11px]">
+                   <div className="flex items-center justify-between text-[10px] lg:text-[11px] flex-col lg:flex-row gap-1 lg:gap-2">
                      <span className="text-text-secondary">Solana</span>
                      <div className="flex items-center gap-2">
-                       <span className="text-text-tertiary">TPS: 2,847</span>
+                       <span className="text-text-tertiary text-xs lg:text-sm">TPS: 2,847</span>
                        <i className="pi pi-circle-fill text-[6px] text-color-success"></i>
-                       <span className="text-color-success font-bold">Live</span>
+                       <span className="text-color-success font-bold text-xs lg:text-sm">Live</span>
                      </div>
                    </div>
                  </div>

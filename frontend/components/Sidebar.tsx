@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: 'pi pi-home' },
@@ -27,14 +28,50 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
     return pathname.startsWith(href);
   };
 
+  const featureTiers: Record<string, string[]> = {
+    'Mining': ['PRO', 'ELITE', 'LEGACY_MASTER'],
+    'Stake': ['ELITE', 'LEGACY_MASTER'],
+    'Cold Storage': ['ELITE', 'LEGACY_MASTER'],
+    'Copy Trading': ['LEGACY_MASTER'],
+    'Signals': ['LEGACY_MASTER'],
+    'Real Estate': ['LEGACY_MASTER'],
+  };
+
+  const isLocked = (name: string) => {
+    const required = featureTiers[name];
+    if (!required) return false;
+    return !required.includes(user?.tier || 'BASIC');
+  };
+
   return (
-    <aside className="w-64 bg-bg-secondary border-r border-color-border h-screen flex flex-col sticky top-0">
+    <>
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="lg:hidden fixed top-4 left-4 z-[60] w-10 h-10 bg-color-primary text-bg-primary rounded-xl flex items-center justify-center shadow-lg"
+      >
+        <i className={`pi ${isMobileMenuOpen ? 'pi-times' : 'pi-bars'} text-lg`}></i>
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-[50]"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`fixed lg:sticky lg:top-0 w-64 bg-bg-secondary border-r border-color-border h-screen flex flex-col z-[55] transform transition-transform duration-300 ease-in-out ${
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
       {/* Logo */}
       <div className="p-8 border-b border-color-border flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-color-primary flex items-center justify-center text-bg-primary shadow-lg shadow-color-primary/20">
@@ -45,20 +82,33 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
-        {navigation.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all group ${
-              isActive(item.href)
-                ? 'bg-color-primary/10 text-color-primary font-bold border border-color-primary/10'
-                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
-            }`}
-          >
-            <i className={`${item.icon} ${isActive(item.href) ? 'text-color-primary' : 'text-text-tertiary group-hover:text-text-primary'} transition-colors`} style={{ fontSize: '1rem' }}></i>
-            <span className="text-xs font-black uppercase tracking-wider">{item.name}</span>
-          </Link>
-        ))}
+        {navigation.map((item) => {
+          const locked = isLocked(item.name);
+          return (
+            <Link
+              key={item.href}
+              href={locked ? '/subscribe' : item.href}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all group ${
+                isActive(item.href)
+                  ? 'bg-color-primary/10 text-color-primary font-bold border border-color-primary/10'
+                  : 'text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary'
+              } ${locked ? 'opacity-80' : ''}`}
+            >
+              <div className="relative">
+                <i className={`${item.icon} ${isActive(item.href) ? 'text-color-primary' : 'text-text-tertiary group-hover:text-text-primary'} transition-colors`} style={{ fontSize: '1rem' }}></i>
+                {locked && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-bg-secondary rounded-full flex items-center justify-center shadow-sm">
+                    <i className="pi pi-lock text-[8px] text-text-tertiary"></i>
+                  </div>
+                )}
+              </div>
+              <span className={`text-xs font-black uppercase tracking-wider ${locked ? 'text-text-tertiary' : ''}`}>
+                {item.name}
+              </span>
+              {locked && <i className="pi pi-lock ml-auto text-[10px] text-text-tertiary/50"></i>}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User Section */}
@@ -108,6 +158,7 @@ export function Sidebar() {
           background: rgba(255, 255, 255, 0.1);
         }
       `}</style>
-    </aside>
+      </aside>
+    </>
   );
 }

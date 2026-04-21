@@ -13,21 +13,28 @@ interface TopBarStats {
   error: string | null;
 }
 
+const DEFAULT_STATS: TopBarStats = {
+  price: 0,
+  change24h: 0,
+  high24h: 0,
+  low24h: 0,
+  volume24h: 0,
+  loading: true,
+  error: null,
+};
+
 export function useTopBarStats(symbol: string, type: 'crypto' | 'forex' | 'stock' = 'crypto') {
-  const [stats, setStats] = useState<TopBarStats>({
-    price: 0,
-    change24h: 0,
-    high24h: 0,
-    low24h: 0,
-    volume24h: 0,
-    loading: true,
-    error: null,
-  });
+  const [stats, setStats] = useState<TopBarStats>(DEFAULT_STATS);
 
   const { channel, isConnected } = useAblyClient();
-  const { isAuthenticated } = useAuth();
+  useAuth();
   const channelRef = useRef<any>(null);
   const subscribedSymbolRef = useRef<string | null>(null);
+
+  // ─── Reset stats immediately when the symbol changes ───
+  useEffect(() => {
+    setStats(DEFAULT_STATS);
+  }, [symbol]);
 
   useEffect(() => {
     if (!symbol || !channel || !isConnected) return;
@@ -38,7 +45,7 @@ export function useTopBarStats(symbol: string, type: 'crypto' | 'forex' | 'stock
     const notifySubscribe = async () => {
       if (subscribedSymbolRef.current === symbol) return;
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
 
       try {
         await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/ably/subscribe-symbol`, {
@@ -94,7 +101,7 @@ export function useTopBarStats(symbol: string, type: 'crypto' | 'forex' | 'stock
 
       // Notify backend that we're unsubscribing
       if (subscribedSymbolRef.current === symbol) {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+        const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
         fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/ably/subscribe-symbol`, {
           method: 'POST',
           headers: {

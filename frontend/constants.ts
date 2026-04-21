@@ -68,12 +68,15 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => `/notifications/${id}`,
   },
   STAKING: {
-    PRODUCTS: "/staking/products",
-    STAKE: "/staking/stake",
-    POSITIONS: "/staking/my-staking",
-    UNSTAKE: (id: string) => `/staking/${id}/unstake`,
+    POOLS: "/staking/pools",
+    STAKE: "/staking/stakes",
+    POSITIONS: "/staking/stakes",
+    UNSTAKE: (id: string) => `/staking/stakes/${id}`,
     REWARDS: "/staking/rewards",
-    GET: (id: string) => `/staking/${id}`,
+    POOL_DETAILS: (id: string) => `/staking/pools/${id}`,
+    STATS: "/staking/stats",
+    REWARDS_CLAIM: "/staking/rewards/claim",
+    SCHEDULE: "/staking/schedule",
   },
   INVESTMENTS: {
     PRODUCTS: "/investments/products",
@@ -117,6 +120,9 @@ export const API_ENDPOINTS = {
     WITHDRAW: "/cold-storage/withdraw",
     TOGGLE_LOCK: "/cold-storage/toggle-lock",
     TRANSACTIONS: "/cold-storage/transactions",
+  },
+  ACTIVITY: {
+    LIST: "/transactions",
   },
 };
 

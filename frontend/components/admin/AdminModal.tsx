@@ -1,7 +1,7 @@
 // Reusable admin modal — full screen on mobile, centered card on desktop
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export function AdminModal({
   isOpen,
@@ -50,5 +50,135 @@ export function AdminModal({
         <div className="overflow-y-auto flex-1 p-5">{children}</div>
       </div>
     </div>
+  );
+}
+
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  loading?: boolean;
+}
+
+export function ConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  loading = false
+}: ConfirmModalProps) {
+  const handleConfirm = () => {
+    if (!loading) {
+      onConfirm();
+    }
+  };
+
+  return (
+    <AdminModal isOpen={isOpen} onClose={onClose} title={title}>
+      <div className="space-y-6">
+        <p className="text-text-secondary">{message}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={handleConfirm}
+            disabled={loading}
+            className="flex-1 py-3 bg-color-danger text-bg-primary rounded-lg font-bold hover:opacity-90 transition disabled:opacity-50 text-sm uppercase"
+          >
+            {loading ? 'Processing...' : confirmText}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 py-3 bg-bg-tertiary border border-color-border text-text-primary rounded-lg font-bold hover:bg-bg-primary transition disabled:opacity-50 text-sm uppercase"
+          >
+            {cancelText}
+          </button>
+        </div>
+      </div>
+    </AdminModal>
+  );
+}
+
+interface PromptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (value: string) => void;
+  title: string;
+  message: string;
+  defaultValue?: string;
+  placeholder?: string;
+  confirmText?: string;
+  cancelText?: string;
+  loading?: boolean;
+}
+
+export function PromptModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  defaultValue = "",
+  placeholder = "",
+  confirmText = "OK",
+  cancelText = "Cancel",
+  loading = false
+}: PromptModalProps) {
+  const [value, setValue] = useState(defaultValue);
+
+  useEffect(() => {
+    if (isOpen) {
+      setValue(defaultValue);
+    }
+  }, [isOpen, defaultValue]);
+
+  const handleConfirm = () => {
+    if (!loading) {
+      onConfirm(value);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleConfirm();
+  };
+
+  return (
+    <AdminModal isOpen={isOpen} onClose={onClose} title={title}>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <p className="text-text-secondary">{message}</p>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          className="w-full px-4 py-3 bg-bg-primary border border-color-border rounded-lg text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-color-primary"
+          autoFocus
+        />
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 py-3 bg-color-primary text-bg-primary rounded-lg font-bold hover:opacity-90 transition disabled:opacity-50 text-sm uppercase"
+          >
+            {loading ? 'Processing...' : confirmText}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 py-3 bg-bg-tertiary border border-color-border text-text-primary rounded-lg font-bold hover:bg-bg-primary transition disabled:opacity-50 text-sm uppercase"
+          >
+            {cancelText}
+          </button>
+        </div>
+      </form>
+    </AdminModal>
   );
 }
