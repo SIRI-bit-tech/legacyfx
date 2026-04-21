@@ -255,15 +255,15 @@ export default function TradePage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
 
         {/* Left: Chart & Tabs */}
-        <div className="flex-1 flex flex-col border-r border-color-border overflow-hidden">
+        <div className="flex-1 flex flex-col border-r border-color-border lg:border-r-0 lg:border-r">
 
           <TradeTopBar symbol={symbol} onSymbolChange={setSymbol} />
 
           {/* TradingView chart container */}
-          <div className="flex-1 bg-bg-primary relative overflow-hidden">
+          <div className="flex-1 lg:h-[500px] bg-bg-primary relative min-h-[300px]">
             <div
               ref={tradingViewContainerRef}
               id="tradingview_widget"
@@ -271,8 +271,8 @@ export default function TradePage() {
             />
           </div>
 
-          {/* Bottom Tabs */}
-          <div className="h-64 bg-bg-secondary border-t border-color-border flex flex-col overflow-hidden">
+          {/* Bottom Tabs - Desktop only */}
+          <div className="hidden lg:flex h-64 bg-bg-secondary border-t border-color-border flex flex-col">
             <div className="flex border-b border-color-border px-4">
               {['Open Orders', 'Order History', 'Trade History', 'Funds'].map((tab, i) => (
                 <button
@@ -288,7 +288,7 @@ export default function TradePage() {
                 </button>
               ))}
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
               {activeTab === 0 && <OpenOrders />}
               {activeTab === 1 && <OrderHistory />}
               {activeTab === 2 && <TradeHistory />}
@@ -298,9 +298,10 @@ export default function TradePage() {
         </div>
 
         {/* Right: Order Book & Trading Panel */}
-        <div className="w-full lg:w-80 flex flex-col bg-bg-secondary overflow-hidden">
+        <div className="w-full lg:w-80 flex flex-col bg-bg-secondary lg:border-l border-t lg:border-t-0 border-color-border">
 
-          <div className="flex-1 border-b border-color-border flex flex-col overflow-hidden">
+          {/* Order Book */}
+          <div className="h-64 lg:h-80 border-b border-color-border flex flex-col overflow-hidden">
             <div className="p-3 border-b border-color-border flex justify-between items-center bg-bg-tertiary/20">
               <span className="text-[10px] font-black uppercase text-text-tertiary tracking-widest">Order Book</span>
               <div className="flex gap-1">
@@ -386,6 +387,31 @@ export default function TradePage() {
                 <span className="text-text-secondary font-bold">0.00000000 USDT</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Mobile Tabs Section */}
+        <div className="lg:hidden w-full bg-bg-secondary border-t border-color-border">
+          <div className="flex border-b border-color-border px-4">
+            {['Open Orders', 'Order History', 'Trade History', 'Funds'].map((tab, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveTab(i)}
+                className={`px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${
+                  activeTab === i
+                    ? 'border-color-primary text-color-primary'
+                    : 'border-transparent text-text-tertiary hover:text-text-primary'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="h-64 overflow-y-auto">
+            {activeTab === 0 && <OpenOrders />}
+            {activeTab === 1 && <OrderHistory />}
+            {activeTab === 2 && <TradeHistory />}
+            {activeTab === 3 && <FundsTab />}
           </div>
         </div>
       </div>

@@ -5,11 +5,22 @@ from typing import List
 
 from app.database import get_db
 from app.models.user import User
-from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus
+from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus, Transaction
 from app.models.trading import ExecutionTrade
 from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
+
+@router.get("/")
+async def list_transactions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all transactions for the current user (ledger)."""
+    stmt = select(Transaction).where(Transaction.user_id == current_user.id).order_by(Transaction.created_at.desc())
+    result = await db.execute(stmt)
+    txs = result.scalars().all()
+    return txs
 
 
 def map_deposit_status(status: DepositStatus) -> str:

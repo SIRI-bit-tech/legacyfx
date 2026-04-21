@@ -185,10 +185,13 @@ async def get_session(
         "user_id": user.id,
         "email": user.email,
         "username": user.username,
+        "tier": user.tier,
         "email_verified": user.email_verified,
         "two_fa_enabled": user.two_factor_enabled,
         "status": user.status,
-        "last_login": user.last_login
+        "last_login": user.last_login,
+        "account_balance": user.account_balance,
+        "created_at": user.created_at
     }
 
 @router.post("/resend-verification-email")

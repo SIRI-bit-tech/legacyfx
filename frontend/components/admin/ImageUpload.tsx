@@ -7,7 +7,7 @@ interface ImageUploadProps {
   helperText?: string;
 }
 
-export function ImageUpload({ label, value, onChange, helperText }: ImageUploadProps) {
+export function ImageUpload({ label, value, onChange, helperText }: Readonly<ImageUploadProps>) {
   return (
     <div className="space-y-2">
       <label className="block text-text-secondary text-[10px] font-black uppercase tracking-widest font-mono">
@@ -31,7 +31,10 @@ export function ImageUpload({ label, value, onChange, helperText }: ImageUploadP
             <UploadButton
               endpoint="imageUploader"
               onClientUploadComplete={(res: any) => {
-                if (res?.[0]) onChange(res[0].url);
+                if (res?.[0]) {
+                  const finalUrl = res[0].ufsUrl || res[0].url;
+                  onChange(finalUrl);
+                }
               }}
               onUploadError={(error: any) => {
                 alert(`ERROR! ${error.message || 'Upload failed'}`);
@@ -41,7 +44,8 @@ export function ImageUpload({ label, value, onChange, helperText }: ImageUploadP
                 allowedContent: "hidden"
               }}
               content={{
-                button({ ready }) {
+                button({ ready, isUploading, uploadProgress }) {
+                  if (isUploading) return `${uploadProgress}%`;
                   if (ready) return "Upload";
                   return "Wait...";
                 }

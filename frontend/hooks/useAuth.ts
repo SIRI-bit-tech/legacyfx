@@ -12,7 +12,7 @@ export function useAuth() {
     const checkAuth = async () => {
       try {
         // Check if token exists in localStorage
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+        const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
 
         if (!token) {
           setIsAuthenticated(false);
@@ -28,6 +28,7 @@ export function useAuth() {
           id: response.user_id,
           email: response.email,
           username: response.username,
+          tier: response.tier || 'BASIC',
           kyc_status: response.status || 'PENDING',
           account_balance: response.account_balance || 0,
           created_at: response.created_at || new Date().toISOString(),
@@ -64,10 +65,35 @@ export function useAuth() {
       api.setToken(null);
       setUser(null);
       setIsAuthenticated(false);
-      window.location.href = '/login';
+      globalThis.location.href = '/login';
     }
   };
 
-  return { user, loading, isAuthenticated, logout };
+  const refreshUser = async () => {
+    try {
+      const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
+      if (!token) return;
+
+      const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
+
+      // Map the session response to User type
+      const userData: User = {
+        id: response.user_id,
+        email: response.email,
+        username: response.username,
+        tier: response.tier || 'BASIC',
+        kyc_status: response.status || 'PENDING',
+        account_balance: response.account_balance || 0,
+        created_at: response.created_at || new Date().toISOString(),
+      };
+
+      setUser(userData);
+      setIsAuthenticated(true);
+    } catch (err) {
+      console.error('Failed to refresh user data:', err);
+    }
+  };
+
+  return { user, loading, isAuthenticated, logout, refreshUser };
 }
 

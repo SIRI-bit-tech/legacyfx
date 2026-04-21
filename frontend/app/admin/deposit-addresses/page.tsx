@@ -7,13 +7,16 @@ import { AdminAuthGuard } from '@/components/admin/AdminAuthGuard';
 import { AdminTable, TableColumn } from '@/components/admin/AdminTable';
 import { AdminBadge } from '@/components/admin/AdminBadge';
 import { DepositAddressModal } from '@/components/admin/DepositAddressModal';
+import { ConfirmModal } from '@/components/admin/AdminModal';
 import { adminDepositAddressesApi } from '@/lib/adminApi';
+import { toast } from 'sonner';
 
 export default function AdminDepositAddressesPage() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<any>(null);
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   const fetchAddresses = useCallback(async () => {
     setLoading(true);
@@ -40,13 +43,21 @@ export default function AdminDepositAddressesPage() {
     await fetchAddresses();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this deposit address?')) return;
+  const handleDelete = (id: string) => {
+    setConfirmModal({ isOpen: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmModal.id) return;
+    
     try {
-      await adminDepositAddressesApi.delete(id);
+      await adminDepositAddressesApi.delete(confirmModal.id);
       await fetchAddresses();
+      toast.success('Address deleted successfully');
     } catch (err) {
-      alert('Failed to delete address');
+      toast.error('Failed to delete address');
+    } finally {
+      setConfirmModal({ isOpen: false, id: null });
     }
   };
 
@@ -64,7 +75,7 @@ export default function AdminDepositAddressesPage() {
           <button
             onClick={() => {
               navigator.clipboard.writeText(a.address);
-              alert('Address copied!');
+              toast.success('Address copied!');
             }}
             className="text-text-tertiary hover:text-color-primary transition"
           >
@@ -138,6 +149,15 @@ export default function AdminDepositAddressesPage() {
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
           initialData={editingAddress}
+        />
+
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ isOpen: false, id: null })}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Deposit Address"
+          message="Are you sure you want to delete this deposit address?"
+          confirmText="Delete"
         />
       </AdminLayout>
     </AdminAuthGuard>

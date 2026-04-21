@@ -4,8 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTopBarStats } from '@/hooks/useTopBarStats';
 import { api } from '@/lib/api';
-import { API_ENDPOINTS } from '@/constants';
-import { TRADING_PAIRS } from '@/constants';
+import { API_ENDPOINTS, TRADING_PAIRS } from '@/constants';
+
 import { toDisplay } from '@/utils/symbolFormat';
 
 interface TradeTopBarProps {
@@ -18,9 +18,9 @@ type SymbolOption = {
   label: string; // human label (e.g. BTC/USDT, EUR/USD)
 };
 
-const normalizeSymbolForApp = (raw: string) => raw.replace(/[-/]/g, '').toUpperCase().trim();
+const normalizeSymbolForApp = (raw: string) => raw.replaceAll(/[-/]/g, '').toUpperCase().trim();
 
-export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
+export function TradeTopBar({ symbol, onSymbolChange }: Readonly<TradeTopBarProps>) {
   const stats = useTopBarStats(symbol, 'crypto');
 
   const knownQuotes = useMemo(
@@ -95,14 +95,14 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
           options.length > 0
             ? options
             : TRADING_PAIRS.map((pair) => {
-                const [baseRaw, quoteRaw] = pair.split('/');
-                const base = baseRaw.toUpperCase();
-                const quote = quoteRaw.toUpperCase();
-                return {
-                  value: `${base}${quote}`,
-                  label: `${base}/${quote}`,
-                } as SymbolOption;
-              });
+              const [baseRaw, quoteRaw] = pair.split('/');
+              const base = baseRaw.toUpperCase();
+              const quote = quoteRaw.toUpperCase();
+              return {
+                value: `${base}${quote}`,
+                label: `${base}/${quote}`,
+              } as SymbolOption;
+            });
 
         setCryptoPairs(finalOptions);
       } catch (e) {
@@ -161,7 +161,7 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
     <div className="bg-bg-secondary border-b border-color-border px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
         {/* Symbol Selector */}
-        <div className="flex items-center gap-2" ref={dropdownWrapRef}>
+        <div className="relative flex items-center gap-2" ref={dropdownWrapRef}>
           <button
             type="button"
             className="flex items-center gap-2 bg-bg-primary/40 border border-color-border rounded-lg px-3 py-2 cursor-pointer"
@@ -178,7 +178,7 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute mt-2 w-64 max-h-[320px] overflow-y-auto bg-bg-primary border border-color-border rounded-xl shadow-lg z-[2000]">
+            <div className="absolute top-full left-0 mt-2 w-64 max-h-[320px] overflow-y-auto bg-bg-primary border border-color-border rounded-xl shadow-lg z-[2000]">
               <div className="p-2">
                 {presetOptions.map((opt) => {
                   const active = opt.value === currentPresetValue && selectionMode !== 'custom';
@@ -186,11 +186,10 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
                     <button
                       key={opt.value}
                       type="button"
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
-                        active
-                          ? 'bg-color-primary/15 text-color-primary'
-                          : 'text-text-primary hover:bg-bg-tertiary/40'
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${active
+                        ? 'bg-color-primary/15 text-color-primary'
+                        : 'text-text-primary hover:bg-bg-tertiary/40'
+                        }`}
                       onClick={() => {
                         setSelectionMode('preset');
                         onSymbolChange?.(normalizeSymbolForApp(opt.value));
@@ -204,11 +203,10 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
 
                 <button
                   type="button"
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
-                    selectionMode === 'custom'
-                      ? 'bg-color-primary/15 text-color-primary'
-                      : 'text-text-primary hover:bg-bg-tertiary/40'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${selectionMode === 'custom'
+                    ? 'bg-color-primary/15 text-color-primary'
+                    : 'text-text-primary hover:bg-bg-tertiary/40'
+                    }`}
                   onClick={() => {
                     setSelectionMode('custom');
                     setCustomTicker(normalizedCurrent);
@@ -281,12 +279,11 @@ export function TradeTopBar({ symbol, onSymbolChange }: TradeTopBarProps) {
           <div>
             <p className="text-[10px] text-text-tertiary font-bold uppercase">24h Volume</p>
             <p className="text-sm font-mono text-text-primary">
-              {stats.loading 
-                ? '--' 
-                : stats.volume24h >= 1e9 
-                  ? `$${(stats.volume24h / 1e9).toFixed(2)}B`
-                  : `$${(stats.volume24h / 1e6).toFixed(1)}M`
-              }
+              {(() => {
+                if (stats.loading) return '--';
+                if (stats.volume24h >= 1e9) return `$${(stats.volume24h / 1e9).toFixed(2)}B`;
+                return `$${(stats.volume24h / 1e6).toFixed(1)}M`;
+              })()}
             </p>
           </div>
         </div>

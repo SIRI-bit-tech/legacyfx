@@ -36,9 +36,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // This means the DOM — including the TradingView div — is always
   // present, so the ref is never null when the widget tries to mount.
   return (
-    <div className="flex h-screen bg-bg-primary">
+    <div className="flex min-h-screen bg-bg-primary">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col lg:ml-0">
         <Header />
         <main className="flex-1 overflow-y-auto">
           {/* Render children regardless of auth state —

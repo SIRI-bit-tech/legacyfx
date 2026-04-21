@@ -5,11 +5,10 @@ import enum
 from app.database import Base
 
 class UserTier(str, enum.Enum):
-    BRONZE = "BRONZE"
-    SILVER = "SILVER"
-    GOLD = "GOLD"
-    PLATINUM = "PLATINUM"
-    DIAMOND = "DIAMOND"
+    BASIC = "BASIC"
+    PRO = "PRO"
+    ELITE = "ELITE"
+    LEGACY_MASTER = "LEGACY_MASTER"
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -45,7 +44,7 @@ class User(Base):
     
     # Profile & Status
     profile_picture_url = Column(String(500), nullable=True)
-    tier = Column(Enum(UserTier), default=UserTier.BRONZE)
+    tier = Column(Enum(UserTier), default=UserTier.BASIC)
     status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
     kyc_status = Column(Enum(KYCStatus), default=KYCStatus.UNVERIFIED)
     kyc_rejection_reason = Column(Text, nullable=True)

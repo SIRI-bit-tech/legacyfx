@@ -9,6 +9,7 @@ export interface User {
   first_name?: string;
   last_name?: string;
   profile_picture_url?: string;
+  tier?: string;
   kyc_status: string;
   account_balance?: number;
   created_at: string;

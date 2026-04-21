@@ -131,6 +131,8 @@ class SyntheticOrderBookService:
         if mid <= 0:
             return {"bids": [], "asks": [], "sequence": 0}
 
+        import random
+
         high = float(price_data.get("high24h") or 0)
         low = float(price_data.get("low24h") or 0)
         volume24h = float(price_data.get("volume24h") or 0)
@@ -142,30 +144,51 @@ class SyntheticOrderBookService:
             range_pct = 0.01
 
         # Half-spread: clamp to avoid absurdly tight/wide ladders.
-        spread_pct = max(0.0005, min(0.02, range_pct / 10.0))
+        spread_pct = max(0.001, min(0.03, range_pct / 6.0))
         half_spread = spread_pct / 2.0
 
-        # Distance between levels increases gradually.
-        # i=0 uses best bid/ask at ~half_spread distance, later levels go further out.
-        step_pct = spread_pct / (2.0 * levels)
+        # Distance between levels – wider step so each level is visually distinct.
+        step_pct = spread_pct / levels
 
         # Volume: convert notional volume to a rough base quantity scale.
         # If volume is unknown, default to a small-ish scale so UI shows numbers.
-        base_qty = max(volume24h / mid, 1.0)
+        base_qty = max(volume24h / mid, 1.0) if mid > 0 else 1.0
+
+        # Determine price decimal precision for rounding
+        if mid < 0.01:
+            decimals = 8
+        elif mid < 1:
+            decimals = 6
+        elif mid < 10:
+            decimals = 5
+        elif mid < 100:
+            decimals = 4
+        elif mid < 1000:
+            decimals = 3
+        else:
+            decimals = 2
 
         bids: List[Dict] = []
         asks: List[Dict] = []
 
         for i in range(levels):
-            bid_price = mid * (1.0 - half_spread - i * step_pct)
-            ask_price = mid * (1.0 + half_spread + i * step_pct)
+            # Add small random jitter for realism (±20% of the step)
+            jitter = random.uniform(-0.2, 0.2) * step_pct
+
+            bid_price = mid * (1.0 - half_spread - i * step_pct + jitter)
+            ask_price = mid * (1.0 + half_spread + i * step_pct + jitter)
+
+            # Round to appropriate precision so levels look clean
+            bid_price = round(bid_price, decimals)
+            ask_price = round(ask_price, decimals)
 
             # Quantity decreases with distance from mid; keep it stable across updates.
+            qty_jitter = random.uniform(0.8, 1.2)
             qty_scale = 1.0 / ((i + 1) ** 1.15)
-            quantity = max(base_qty * qty_scale, 0.0000001)
+            quantity = max(base_qty * qty_scale * qty_jitter, 0.0000001)
 
-            bids.append({"price": bid_price, "quantity": quantity})
-            asks.append({"price": ask_price, "quantity": quantity * 0.98})
+            bids.append({"price": bid_price, "quantity": round(quantity, 6)})
+            asks.append({"price": ask_price, "quantity": round(quantity * 0.98, 6)})
 
         return {"bids": bids, "asks": asks, "sequence": int(datetime.utcnow().timestamp())}
 

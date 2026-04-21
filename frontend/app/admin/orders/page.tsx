@@ -7,12 +7,15 @@ import { AdminAuthGuard } from '@/components/admin/AdminAuthGuard';
 import { AdminTable, TableColumn } from '@/components/admin/AdminTable';
 import { AdminBadge } from '@/components/admin/AdminBadge';
 import { AdminFilters, FilterField } from '@/components/admin/AdminFilters';
+import { ConfirmModal } from '@/components/admin/AdminModal';
 import { adminApi } from '@/lib/adminApi';
+import { toast } from 'sonner';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ symbol: '', status: '', side: '' });
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -31,13 +34,21 @@ export default function AdminOrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const handleCancel = async (id: string) => {
-    if (!confirm('Are you sure you want to manually cancel this order?')) return;
+  const handleCancel = (id: string) => {
+    setConfirmModal({ isOpen: true, id });
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!confirmModal.id) return;
+    
     try {
-      await adminApi.patch(`/admin/orders/${id}/cancel`);
+      await adminApi.patch(`/admin/orders/${confirmModal.id}/cancel`);
       await fetchOrders();
+      toast.success('Order cancelled successfully');
     } catch (err) {
-      alert('Failed to cancel order');
+      toast.error('Failed to cancel order');
+    } finally {
+      setConfirmModal({ isOpen: false, id: null });
     }
   };
 
@@ -106,6 +117,15 @@ export default function AdminOrdersPage() {
             emptyMessage="No orders found."
           />
         </div>
+
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ isOpen: false, id: null })}
+          onConfirm={handleCancelConfirm}
+          title="Cancel Order"
+          message="Are you sure you want to manually cancel this order?"
+          confirmText="Cancel Order"
+        />
       </AdminLayout>
     </AdminAuthGuard>
   );

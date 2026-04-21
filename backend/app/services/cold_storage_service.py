@@ -72,7 +72,7 @@ class ColdStorageService:
 
         if not vault:
             # Create default vault if it doesn't exist (for first-time access to page)
-            async with db.begin():
+            try:
                 vault = ColdStorageVault(
                     id=str(uuid.uuid4()),
                     user_id=user_id,
@@ -81,7 +81,16 @@ class ColdStorageService:
                     is_locked=True,
                 )
                 db.add(vault)
-                await db.flush()
+                await db.commit()
+                await db.refresh(vault)
+            except Exception as e:
+                # If creation fails (e.g., race condition), try to fetch it again
+                await db.rollback()
+                stmt = select(ColdStorageVault).where(ColdStorageVault.user_id == user_id)
+                result = await db.execute(stmt)
+                vault = result.scalar_one_or_none()
+                if not vault:
+                    raise e
 
         # Get all cold storage transactions for this user to calculate asset breakdown
         stmt = select(Transaction).where(
@@ -140,8 +149,13 @@ class ColdStorageService:
         if amount <= 0:
             raise ColdStorageError("Amount must be greater than 0")
 
-        # Use transaction block with row locks to prevent race conditions
-        async with db.begin():
+        # Ensure transaction
+        is_owner = False
+        if not db.in_transaction():
+            await db.begin()
+            is_owner = True
+        
+        try:
             # Get user with FOR UPDATE lock to prevent concurrent modifications
             stmt = select(User).where(User.id == user_id).with_for_update()
             result = await db.execute(stmt)
@@ -201,7 +215,15 @@ class ColdStorageService:
             # 2. get_vault_data() calculates balances from transaction history
             # 3. vault.balance is metadata-only for this vault
 
-            # Transaction is committed when exiting the async with block
+            # Transaction management
+            if is_owner:
+                await db.commit()
+            else:
+                await db.flush()
+        except Exception as e:
+            if is_owner:
+                await db.rollback()
+            raise e
 
         # Broadcast via Ably if available (outside transaction)
         if ably_service:
@@ -240,8 +262,13 @@ class ColdStorageService:
         if amount <= 0:
             raise ColdStorageError("Amount must be greater than 0")
 
-        # Use transaction block with row locks to prevent race conditions
-        async with db.begin():
+        # Ensure transaction
+        is_owner = False
+        if not db.in_transaction():
+            await db.begin()
+            is_owner = True
+            
+        try:
             # Get vault with FOR UPDATE lock
             stmt = select(ColdStorageVault).where(
                 ColdStorageVault.user_id == user_id
@@ -316,7 +343,15 @@ class ColdStorageService:
             # 2. get_vault_data() calculates balances from transaction history
             # 3. vault.balance is metadata-only for this vault
 
-            # Transaction is committed when exiting the async with block
+            # Transaction management
+            if is_owner:
+                await db.commit()
+            else:
+                await db.flush()
+        except Exception as e:
+            if is_owner:
+                await db.rollback()
+            raise e
 
         # Broadcast via Ably (outside transaction)
         if ably_service:
@@ -343,8 +378,13 @@ class ColdStorageService:
 
     @staticmethod
     async def toggle_vault_lock(user_id: str, is_locked: bool, db: AsyncSession) -> dict:
-        """Toggle vault lock status."""
-        async with db.begin():
+        # Ensure transaction
+        is_owner = False
+        if not db.in_transaction():
+            await db.begin()
+            is_owner = True
+            
+        try:
             # Get vault with FOR UPDATE lock
             stmt = select(ColdStorageVault).where(
                 ColdStorageVault.user_id == user_id
@@ -356,7 +396,15 @@ class ColdStorageService:
                 raise VaultNotFoundError("Vault not found")
 
             vault.is_locked = is_locked
-            # Transaction is committed when exiting the async with block
+            # Transaction management
+            if is_owner:
+                await db.commit()
+            else:
+                await db.flush()
+        except Exception as e:
+            if is_owner:
+                await db.rollback()
+            raise e
 
         status = "locked" if is_locked else "unlocked"
         return {

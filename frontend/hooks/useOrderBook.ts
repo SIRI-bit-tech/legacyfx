@@ -37,17 +37,17 @@ export function useOrderBook(symbol: string) {
 
   useEffect(() => {
     if (!symbol) return;
-    
+
     // Wait for Ably to connect before proceeding
     if (!isConnected) {
       console.log('Waiting for Ably connection...');
       return;
     }
-    
+
     if (!getChannelRef.current) return;
 
     let mounted = true;
-    const normalized = symbol.replace(/[-\/]/g, '').toUpperCase();
+    const normalized = symbol.replaceAll(/[-\\/]/g, '').toUpperCase();
 
     // Forex presets used by the TradeTopBar dropdown.
     const forexSymbols = new Set(['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD']);
@@ -76,24 +76,24 @@ export function useOrderBook(symbol: string) {
         setOrderBook(prev => ({
           ...prev,
           loading: false,
-          error: 'Unable to load order book data'
+          error: 'No data available now'
         }));
       }
     }, 5000);
 
-    const normalizedForRequest = symbol.replace(/[-\/]/g, '').toUpperCase();
+    const normalizedForRequest = symbol.replaceAll(/[-/]/g, '').toUpperCase();
 
     // Notify backend that we're subscribing to this symbol's order book
     const notifySubscribe = async () => {
       if (notifiedRef.current) return;
-      
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-      
+
+      const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
+
       if (!token) {
         console.warn('No access token available for order book subscription');
         return;
       }
-      
+
       try {
         await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/ably/subscribe-orderbook`, {
           method: 'POST',
@@ -116,22 +116,22 @@ export function useOrderBook(symbol: string) {
     // Backend broadcasts on KuCoin-formatted symbol channel: orderbook:{BTC-USDT}
     const channelName = `orderbook:${orderbookChannelKey}`;
     const ablyChannel = getChannelRef.current(channelName);
-    
+
     if (!ablyChannel) {
       console.warn('Ably channel not available yet');
       return;
     }
-    
+
     channelRef.current = ablyChannel;
-    
+
     // Handle snapshot (full order book)
     channelRef.current.subscribe('snapshot', (message: any) => {
       if (!mounted) return;
-      
+
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
-      
+
       const data = message.data;
       setOrderBook({
         bids: data.bids || [],
@@ -144,11 +144,11 @@ export function useOrderBook(symbol: string) {
     // Handle incremental updates
     channelRef.current.subscribe('update', (message: any) => {
       if (!mounted) return;
-      
+
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
-      
+
       const data = message.data;
       setOrderBook(prev => ({
         ...prev,
@@ -160,19 +160,19 @@ export function useOrderBook(symbol: string) {
 
     return () => {
       mounted = false;
-      
+
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
       }
-      
+
       if (channelRef.current) {
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
-      
+
       // Notify backend that we're unsubscribing
       if (notifiedRef.current) {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+        const token = globalThis.window === undefined ? null : localStorage.getItem('access_token');
         if (token) {
           fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/ably/subscribe-orderbook`, {
             method: 'POST',
@@ -184,7 +184,7 @@ export function useOrderBook(symbol: string) {
             body: JSON.stringify({ symbol: normalizedForRequest, action: 'unsubscribe' }),
           }).catch(err => console.error('Error notifying backend:', err));
         }
-        
+
         notifiedRef.current = false;
       }
     };
