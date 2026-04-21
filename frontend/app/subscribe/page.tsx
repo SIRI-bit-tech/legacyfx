@@ -88,6 +88,13 @@ export default function SubscribePage() {
           const sub = await api.get('/subscriptions/my-subscription');
           if (!mounted) return;
           
+          // Handle null subscription response
+          if (!sub) {
+            setCurrentSubscription(null);
+            await refreshUser();
+            return;
+          }
+          
           setCurrentSubscription(sub);
           
           // If subscription status changed, refresh user data

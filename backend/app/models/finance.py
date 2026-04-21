@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from app.database import Base
+from app.models.user import UserTier
 
 class DepositStatus(str, enum.Enum):
     PENDING = "PENDING"
@@ -115,7 +116,7 @@ class SubscriptionPlan(Base):
     
     id = Column(String(36), primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    tier = Column(String(20), nullable=False) # BASIC, PRO, ELITE, LEGACY_MASTER
+    tier = Column(Enum(UserTier), nullable=False) # BASIC, PRO, ELITE, LEGACY_MASTER
     price = Column(Float, nullable=False) # In USD
     features = Column(Text, nullable=True) # JSON features list
     is_active = Column(Boolean, default=True)
@@ -125,9 +126,12 @@ class UserSubscription(Base):
     
     id = Column(String(36), primary_key=True, index=True)
     user_id = Column(String(36), index=True, nullable=False)
-    plan_id = Column(String(36), nullable=False)
+    plan_id = Column(String(36), ForeignKey("subscription_plans.id"), nullable=False)
     status = Column(String(20), default="PENDING") # PENDING, ACTIVE, CANCELLED, EXPIRED, REJECTED
     payment_proof = Column(String(255), nullable=True) # Optional link or reference
     started_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     auto_renew = Column(Boolean, default=True)
+    
+    # Relationships
+    plan = relationship("SubscriptionPlan", backref="subscriptions")

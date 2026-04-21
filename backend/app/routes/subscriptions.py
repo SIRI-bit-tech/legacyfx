@@ -157,7 +157,7 @@ async def subscribe_user(
 async def get_my_subscription(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get user's current or pending subscription details."""
     stmt = select(UserSubscription, SubscriptionPlan).join(
-        SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id
+        UserSubscription.plan
     ).where(
         UserSubscription.user_id == current_user.id,
         UserSubscription.status.in_(["ACTIVE", "PENDING"])

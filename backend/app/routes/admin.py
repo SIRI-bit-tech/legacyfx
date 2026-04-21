@@ -317,6 +317,13 @@ async def approve_user_subscription(
     from app.models.user import UserTier
     
     # Get the canonical tier from the plan (strict source of truth)
+    # Validate plan.tier is not None and is a string before calling .upper()
+    if plan.tier is None or not isinstance(plan.tier, str):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid plan tier. Must be one of: {list(TIER_RANKING.keys())}"
+        )
+    
     plan_tier = plan.tier.upper()
     
     # Validate plan tier is a valid UserTier
