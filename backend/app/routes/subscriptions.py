@@ -156,19 +156,25 @@ async def subscribe_user(
 @router.get("/my-subscription")
 async def get_my_subscription(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get user's current or pending subscription details."""
-    stmt = select(UserSubscription).where(
+    stmt = select(UserSubscription, SubscriptionPlan).join(
+        SubscriptionPlan, UserSubscription.plan_id == SubscriptionPlan.id
+    ).where(
         UserSubscription.user_id == current_user.id,
         UserSubscription.status.in_(["ACTIVE", "PENDING"])
-    ).order_by(UserSubscription.started_at.desc())
+    ).order_by(UserSubscription.started_at.desc()).limit(1)
     result = await db.execute(stmt)
-    subscription = result.scalar_one_or_none()
+    row = result.first()
     
-    if not subscription:
+    if not row:
         return None
+    
+    subscription, plan = row
     
     return {
         "id": subscription.id,
         "plan_id": subscription.plan_id,
+        "plan_name": plan.name,
+        "plan_tier": plan.tier,
         "status": subscription.status,
         "started_at": subscription.started_at,
         "expires_at": subscription.expires_at

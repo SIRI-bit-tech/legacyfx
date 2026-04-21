@@ -25,6 +25,14 @@ from app.schemas.admin import AdminRegisterRequest, AdminLoginRequest, AdminAuth
 from app.services.admin_auth_service import register_admin_account, login_admin_account
 from pydantic import BaseModel
 
+# Tier ranking for preventing downgrades
+TIER_RANKING = {
+    "BASIC": 1,
+    "PRO": 2, 
+    "ELITE": 3,
+    "LEGACY_MASTER": 4
+}
+
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 logger = logging.getLogger(__name__)
@@ -49,6 +57,22 @@ async def login_admin(request: AdminLoginRequest, db: AsyncSession = Depends(get
         email=request.email,
         password=request.password
     )
+
+
+@router.post("/auth/validate")
+async def validate_admin_token(
+    current_admin: Admin = Depends(get_current_admin)
+):
+    """Validate admin token and return admin session info."""
+    return {
+        "admin": {
+            "id": current_admin.id,
+            "email": current_admin.email,
+            "name": current_admin.name,
+            "status": current_admin.status.value
+        },
+        "valid": True
+    }
 
 # Helper dependency to check if user is admin
 async def require_admin(current_admin: Admin = Depends(get_current_admin)) -> Admin:
@@ -289,17 +313,44 @@ async def approve_user_subscription(
     sub.started_at = datetime.utcnow()
     sub.expires_at = datetime.utcnow() + timedelta(days=days)
     
-    # 2. Update User Tier based on plan name
-    plan_name = plan.name.upper()
+    # 2. Resolve plan tier and check for downgrade
     from app.models.user import UserTier
-    if "LEGACY MASTER" in plan_name:
+    
+    # Get the canonical tier from the plan (strict source of truth)
+    plan_tier = plan.tier.upper()
+    
+    # Validate plan tier is a valid UserTier
+    if plan_tier not in TIER_RANKING:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid plan tier '{plan_tier}'. Must be one of: {list(TIER_RANKING.keys())}"
+        )
+    
+    # Get current user tier ranking
+    current_tier_rank = TIER_RANKING.get(user.tier.value, 0)
+    new_tier_rank = TIER_RANKING[plan_tier]
+    
+    # Prevent downgrades
+    if new_tier_rank < current_tier_rank:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot approve subscription that would downgrade user from {user.tier.value} (rank {current_tier_rank}) to {plan_tier} (rank {new_tier_rank})."
+        )
+    
+    # Update user tier using strict mapping
+    if plan_tier == "LEGACY_MASTER":
         user.tier = UserTier.LEGACY_MASTER
-    elif "ELITE" in plan_name:
+    elif plan_tier == "ELITE":
         user.tier = UserTier.ELITE
-    elif "PRO" in plan_name:
+    elif plan_tier == "PRO":
         user.tier = UserTier.PRO
-    else:
+    elif plan_tier == "BASIC":
         user.tier = UserTier.BASIC
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported plan tier: {plan_tier}"
+        )
         
     # 3. Update related Transaction status
     tx_stmt = select(Transaction).where(
@@ -344,6 +395,13 @@ async def decline_user_subscription(
     
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription request not found")
+    
+    # Only allow declining subscriptions with PENDING status
+    if sub.status != "PENDING":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot decline subscription with status '{sub.status}'. Only PENDING subscriptions can be declined."
+        )
         
     sub.status = "REJECTED"
     

@@ -22,16 +22,59 @@ export const ourFileRouter = {
           throw new Error("Unauthorized: Admin session not found. Please log out and in again.");
         }
 
-        return { token };
+        // Validate token server-side and verify admin role
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+        try {
+          const response = await fetch(`${backendUrl}/api/v1/admin/auth/validate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            credentials: 'include',
+          });
+
+          if (!response.ok) {
+            throw new Error("Unauthorized: Invalid admin token or insufficient permissions.");
+          }
+
+          const adminSession = await response.json();
+
+          if (!adminSession.admin || adminSession.admin.status !== 'ACTIVE') {
+            throw new Error("Unauthorized: Admin account is not active.");
+          }
+
+          console.log("Upload auth successful for admin:", adminSession.admin.email);
+
+          return {
+            token: token,
+            admin: adminSession.admin,
+            validated: true
+          };
+        } catch (validationError: any) {
+          console.error("Token validation failed:", validationError.message);
+          throw new Error("Unauthorized: Admin session validation failed. Please log in again.");
+        }
+
       } catch (err: any) {
         console.error("UPLOADTHING_MIDDLEWARE_ERROR:", err.message);
         throw err;
       }
     })
-    .onUploadComplete(async ({ metadata, file }: { metadata: { token: string }; file: { appUrl?: string; url?: string; ufsUrl?: string } }) => {
-      console.log("Upload complete for token:", metadata.token);
-      const fileUrl = file.ufsUrl || file.url;
-      console.log("file url", fileUrl);
+    .onUploadComplete(async ({ metadata, file }: { metadata: { token: string; admin: any; validated: boolean }; file: { appUrl?: string; url?: string; ufsUrl?: string } }) => {
+      // Don't log sensitive admin credentials
+      console.debug("Upload complete for admin:", metadata.admin?.email || "unknown");
+
+      // Resolve file URL with proper fallback order
+      const fileUrl = file.ufsUrl || file.appUrl || file.url;
+
+      if (!fileUrl) {
+        console.error("Upload completed but no file URL available");
+        throw new Error("Upload completed but no file URL available");
+      }
+
+      console.log("File uploaded successfully");
       return { uploadedBy: "admin", url: fileUrl };
     }),
 } satisfies FileRouter;

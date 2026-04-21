@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.copy_trading import CopyTrading, CopyModeEnum, CopyStatus
 from app.utils.auth import get_current_user
+from app.utils.tier_auth import require_legacy_master
 from app.schemas.copy_trading import (
     MasterTraderResponse,
     StartCopyTradingRequest,
@@ -76,7 +77,7 @@ async def search_traders(
 @router.post("/start")
 async def start_copy_trading(
     request: StartCopyTradingRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_legacy_master),
     db: AsyncSession = Depends(get_db)
 ):
     """

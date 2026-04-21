@@ -19,6 +19,7 @@ from app.schemas.staking import (
 )
 from app.services.staking_service import StakingService
 from app.utils.auth import get_current_user, is_admin
+from app.utils.tier_auth import require_elite_or_higher
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ async def get_staking_pool(
 @router.post("/stakes", response_model=StakingOperationResponse)
 async def create_stake(
     request: StakeRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_elite_or_higher),
     db: AsyncSession = Depends(get_db)
 ):
     """

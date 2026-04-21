@@ -54,14 +54,16 @@ export default function SubscribePage() {
   ];
 
   useEffect(() => {
+    let mounted = true;
+    
     const fetchData = async () => {
       try {
         const info = await api.get('/subscriptions/info');
-        setAdminInfo(info);
+        if (mounted) setAdminInfo(info);
         
         // Fetch user's current subscription
         const sub = await api.get('/subscriptions/my-subscription');
-        setCurrentSubscription(sub);
+        if (mounted) setCurrentSubscription(sub);
         
         // Refresh user data to get latest tier
         await refreshUser();
@@ -70,14 +72,22 @@ export default function SubscribePage() {
       }
     };
     fetchData();
-  }, []);
+    
+    return () => {
+      mounted = false;
+    };
+  }, [refreshUser]);
 
   // Poll for subscription updates every 30 seconds if there's a pending subscription
   useEffect(() => {
+    let mounted = true;
+    
     if (currentSubscription?.status === 'PENDING') {
       const interval = setInterval(async () => {
         try {
           const sub = await api.get('/subscriptions/my-subscription');
+          if (!mounted) return;
+          
           setCurrentSubscription(sub);
           
           // If subscription status changed, refresh user data
@@ -85,7 +95,7 @@ export default function SubscribePage() {
             await refreshUser();
             
             // Show success message if approved
-            if (sub.status === 'ACTIVE') {
+            if (sub.status === 'ACTIVE' && mounted) {
               setSuccessMessage(`Congratulations! Your ${sub.plan_name || 'subscription'} has been approved and is now active!`);
             }
           }
@@ -94,7 +104,10 @@ export default function SubscribePage() {
         }
       }, 30000); // 30 seconds
 
-      return () => clearInterval(interval);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+      };
     }
   }, [currentSubscription?.status, refreshUser]);
 
@@ -125,13 +138,13 @@ export default function SubscribePage() {
   const getPlanStatus = (plan: any) => {
     if (!user) return null;
     
-    // Check if user has pending subscription for THIS specific plan
-    if (currentSubscription?.status === 'PENDING' && currentSubscription?.plan_id === plan.id) {
+    // Check if user has pending subscription for THIS specific plan tier
+    if (currentSubscription?.status === 'PENDING' && currentSubscription?.plan_tier === plan.tier) {
       return 'PENDING';
     }
     
-    // Check if user has active subscription for this plan
-    if (currentSubscription?.status === 'ACTIVE' && user.tier === plan.tier) {
+    // Check if user has active subscription for this plan tier
+    if (currentSubscription?.status === 'ACTIVE' && currentSubscription?.plan_tier === plan.tier) {
       return 'ACTIVE';
     }
     
@@ -145,15 +158,14 @@ export default function SubscribePage() {
       if (user.tier === 'BASIC') {
         return 'CURRENT';
       }
-      return 'HIDDEN'; // Don't show button for BASIC when user has higher tier
     }
     
-    // Check if this is user's current tier (without subscription)
-    if (user.tier === plan.tier) {
+    // For higher tiers: show "Current Plan" if user has that tier
+    if (user.tier === plan.tier && user.tier !== 'BASIC') {
       return 'CURRENT';
     }
     
-    return null;
+    return 'AVAILABLE';
   };
 
   const getButtonText = (plan: any) => {
@@ -163,7 +175,6 @@ export default function SubscribePage() {
     if (status === 'PENDING') return 'Payment Pending';
     if (status === 'CURRENT') return 'Current Plan';
     if (status === 'DISABLED') return `Upgrade to ${plan.tier.replace('_', ' ')}`;
-    if (status === 'HIDDEN') return ''; // No button text
     
     return `Upgrade to ${plan.tier.replace('_', ' ')}`;
   };
@@ -175,7 +186,8 @@ export default function SubscribePage() {
 
   const shouldShowButton = (plan: any) => {
     const status = getPlanStatus(plan);
-    return status !== 'HIDDEN';
+    // Always show buttons for all valid statuses
+    return status !== null;
   };
 
   return (

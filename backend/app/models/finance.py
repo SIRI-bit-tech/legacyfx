@@ -115,6 +115,7 @@ class SubscriptionPlan(Base):
     
     id = Column(String(36), primary_key=True, index=True)
     name = Column(String(100), nullable=False)
+    tier = Column(String(20), nullable=False) # BASIC, PRO, ELITE, LEGACY_MASTER
     price = Column(Float, nullable=False) # In USD
     features = Column(Text, nullable=True) # JSON features list
     is_active = Column(Boolean, default=True)
