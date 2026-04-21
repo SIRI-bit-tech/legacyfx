@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List
 
 from app.database import get_db
@@ -34,14 +34,26 @@ async def list_transactions(
         Transaction.created_at.desc()
     ).limit(per_page).offset(offset)
     
+    # Get total count for accurate pagination
+    count_stmt = select(func.count(Transaction.id)).where(
+        Transaction.user_id == current_user.id
+    )
+    
     result = await db.execute(stmt)
     txs = result.scalars().all()
+    
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
+    
+    # Calculate has_more correctly using offset and total
+    has_more = offset + len(txs) < total
     
     return {
         "items": txs,
         "page": page,
         "per_page": per_page,
-        "has_more": len(txs) == per_page
+        "total": total,
+        "has_more": has_more
     }
 
 

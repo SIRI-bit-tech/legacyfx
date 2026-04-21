@@ -21,6 +21,7 @@ export default function AdminSettingsPage() {
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [miningDirty, setMiningDirty] = useState(false);
 
   useEffect(() => {
     // Initial fetch of settings
@@ -63,9 +64,10 @@ export default function AdminSettingsPage() {
 
       await adminSettingsApi.update(updateData);
 
-      // Update mining wallet (allow empty string to clear the backend value)
-      if (settings.miningWallet !== undefined) {
+      // Update mining wallet only when fields were actually edited
+      if (miningDirty) {
         await adminSettingsApi.updateMining(settings.miningWallet, settings.miningQR);
+        setMiningDirty(false); // Reset dirty state after save
       }
 
       setSuccess(true);
@@ -145,7 +147,10 @@ export default function AdminSettingsPage() {
                   id="miningWallet"
                   type="text"
                   value={settings.miningWallet}
-                  onChange={(e) => setSettings({ ...settings, miningWallet: e.target.value })}
+                  onChange={(e) => {
+                  setSettings({ ...settings, miningWallet: e.target.value });
+                  setMiningDirty(true);
+                }}
                   placeholder="0x..."
                   className="w-full bg-bg-tertiary border border-color-border text-text-primary rounded-lg px-3 py-2 text-sm font-mono focus:border-color-primary"
                 />
@@ -154,7 +159,10 @@ export default function AdminSettingsPage() {
               <ImageUpload
                 label="Mining Wallet QR Code"
                 value={settings.miningQR}
-                onChange={(url) => setSettings({ ...settings, miningQR: url })}
+                onChange={(url) => {
+                  setSettings({ ...settings, miningQR: url });
+                  setMiningDirty(true);
+                }}
                 helperText="Upload the QR code for the admin mining wallet."
               />
             </div>

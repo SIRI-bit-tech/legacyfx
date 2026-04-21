@@ -22,7 +22,17 @@ export default function StakePage() {
         api.get(API_ENDPOINTS.STAKING.POSITIONS).catch(() => []),
         api.get(API_ENDPOINTS.MARKETS.OVERVIEW).catch(() => null)
       ]);
-      setProducts(prodRes || []);
+      
+      // Map backend response to frontend-expected field names
+      const mappedProducts = (prodRes || []).map((pool: any) => ({
+        ...pool,
+        apy: pool.annual_percentage_yield,
+        name: pool.staking_type,
+        min_investment: pool.min_stake_amount,
+        duration_days: pool.lock_period_days
+      }));
+      
+      setProducts(mappedProducts);
       setMyStaking(myRes || []);
       setGlobalStats(statsRes);
     } catch (e) {

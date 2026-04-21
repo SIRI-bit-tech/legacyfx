@@ -26,32 +26,51 @@ export const ourFileRouter = {
         const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         try {
-          const response = await fetch(`${backendUrl}/api/v1/admin/auth/validate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            credentials: 'include',
-          });
+          // Create AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+          }, 5000); // 5 second timeout
 
-          if (!response.ok) {
-            throw new Error("Unauthorized: Invalid admin token or insufficient permissions.");
+          try {
+            const response = await fetch(`${backendUrl}/api/v1/admin/auth/validate`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              credentials: 'include',
+              signal: controller.signal,
+            });
+
+            // Clear timeout when response is received
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+              throw new Error("Unauthorized: Invalid admin token or insufficient permissions.");
+            }
+
+            const adminSession = await response.json();
+
+            if (!adminSession.admin || adminSession.admin.status !== 'ACTIVE') {
+              throw new Error("Unauthorized: Admin account is not active.");
+            }
+
+            return {
+              adminId: adminSession.admin.id,
+              validated: true
+            };
+          } catch (fetchError: any) {
+            // Clear timeout if still active
+            clearTimeout(timeoutId);
+
+            // Handle abort error specifically
+            if (fetchError.name === 'AbortError') {
+              throw new Error("Unauthorized: Token validation timed out. Please try again.");
+            }
+
+            throw fetchError;
           }
-
-          const adminSession = await response.json();
-
-          if (!adminSession.admin || adminSession.admin.status !== 'ACTIVE') {
-            throw new Error("Unauthorized: Admin account is not active.");
-          }
-
-          console.log("Upload auth successful for admin:", adminSession.admin.email);
-
-          return {
-            token: token,
-            admin: adminSession.admin,
-            validated: true
-          };
         } catch (validationError: any) {
           console.error("Token validation failed:", validationError.message);
           throw new Error("Unauthorized: Admin session validation failed. Please log in again.");
@@ -62,10 +81,7 @@ export const ourFileRouter = {
         throw err;
       }
     })
-    .onUploadComplete(async ({ metadata, file }: { metadata: { token: string; admin: any; validated: boolean }; file: { appUrl?: string; url?: string; ufsUrl?: string } }) => {
-      // Don't log sensitive admin credentials
-      console.debug("Upload complete for admin:", metadata.admin?.email || "unknown");
-
+    .onUploadComplete(async ({ metadata, file }: { metadata: { adminId: string; validated: boolean }; file: { appUrl?: string; url?: string; ufsUrl?: string } }) => {
       // Resolve file URL with proper fallback order
       const fileUrl = file.ufsUrl || file.appUrl || file.url;
 
@@ -74,7 +90,6 @@ export const ourFileRouter = {
         throw new Error("Upload completed but no file URL available");
       }
 
-      console.log("File uploaded successfully");
       return { uploadedBy: "admin", url: fileUrl };
     }),
 } satisfies FileRouter;
