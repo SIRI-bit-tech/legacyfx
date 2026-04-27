@@ -23,10 +23,9 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     }
   },
   "include": [
@@ -34,7 +33,12 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "app",
+    "components",
+    "lib",
+    "hooks",
+    "utils",
+    "services"
   ],
   "exclude": [
     "node_modules"
