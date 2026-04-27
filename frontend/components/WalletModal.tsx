@@ -9,6 +9,9 @@ interface WalletModalProps {
   onClose: () => void;
 }
 
+// Global set to track synced addresses across modal open/close cycles in the same session
+const syncedAddresses = new Set<string>();
+
 export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
   const { connect, connectors, isPending } = useConnect();
   const { address, isConnected } = useAccount();
@@ -41,7 +44,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
   // Sync with backend when account is connected
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && !syncedAddresses.has(address)) {
       const syncWithBackend = async () => {
         try {
           const response = await fetch('/api/v1/wallets/connect', {
@@ -57,21 +60,37 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
             })
           });
           
-          if (response.ok) {
-            showAlert('Wallet connected and synced successfully!', 'success', 'Success');
-            setTimeout(onClose, 2000);
+          const data = await response.json();
+          const errorCode = typeof data.detail === 'object' ? data.detail.code : null;
+          const detailMessage = typeof data.detail === 'object' ? data.detail.message : data.detail;
+
+          const isAlreadyConnected = errorCode === "WALLET_ALREADY_CONNECTED";
+
+          if (response.ok || isAlreadyConnected) {
+            syncedAddresses.add(address);
+            if (response.ok) {
+              showAlert('Wallet connected and synced successfully!', 'success', 'Success');
+            }
+            // If already connected, we can silently treat it as success or show a message
+            // and close the modal after a delay.
+            setTimeout(() => {
+              onClose();
+            }, 2000);
           } else {
-            // Even if backend fails, the wallet is connected to the frontend
-            console.error('Failed to sync wallet with backend');
+            // This includes WALLET_IN_USE or other errors
+            const errorMessage = detailMessage || 'Failed to sync wallet with backend';
+            showAlert(errorMessage, 'error', 'Sync Error');
+            console.error('Failed to sync wallet with backend:', data.detail);
           }
         } catch (error) {
           console.error('Backend sync error:', error);
+          showAlert('An unexpected error occurred while syncing your wallet.', 'error', 'Error');
         }
       };
       
       syncWithBackend();
     }
-  }, [isConnected, address, onClose]);
+  }, [isConnected, address]);
 
   const handleConnect = async (walletId: string) => {
     // Map our UI IDs to Wagmi connector IDs

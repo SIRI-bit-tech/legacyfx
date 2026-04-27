@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional
-from datetime import datetime
+from sqlalchemy.exc import IntegrityError
+from typing import List
+from datetime import datetime, timezone
+from pydantic import BaseModel
+from uuid import uuid4
 
 from app.database import get_db
 from app.models.user import User
@@ -12,12 +15,15 @@ from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/wallets", tags=["wallets"])
 
+class ConnectWalletRequest(BaseModel):
+    address: str
+    asset_symbol: str
+    wallet_type: str = "CRYPTO"
+
 
 @router.post("/connect")
 async def connect_wallet(
-    address: str,
-    asset_symbol: str,
-    wallet_type: str = "CRYPTO",
+    payload: ConnectWalletRequest = Body(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -25,51 +31,84 @@ async def connect_wallet(
     
     # Validate wallet type
     try:
-        wallet_type_enum = WalletType(wallet_type.upper())
-    except ValueError:
+        wallet_type_enum = WalletType(payload.wallet_type.upper())
+    except ValueError as err:
         raise HTTPException(
             status_code=400, 
             detail=f"Invalid wallet type. Must be one of: {[wt.value for wt in WalletType]}"
-        )
+        ) from err
     
-    # Check if wallet address already exists
-    existing_stmt = select(Wallet).where(
-        Wallet.address == address.strip(),
-        Wallet.user_id == current_user.id
-    )
-    existing_result = await db.execute(existing_stmt)
-    existing_wallet = existing_result.scalar_one_or_none()
+    address_original = payload.address.strip()
+    address_normalized = address_original.lower()
+    
+    # 1. Query Wallet by address (global search using normalized address)
+    stmt = select(Wallet).where(Wallet.address_normalized == address_normalized)
+    result = await db.execute(stmt)
+    existing_wallet = result.scalar_one_or_none()
     
     if existing_wallet:
-        raise HTTPException(
-            status_code=400, 
-            detail="This wallet address is already connected to your account"
+        # 2. If found and wallet.user_id != current_user.id, return a 400
+        if existing_wallet.user_id != current_user.id:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "This wallet address is already in use by another account",
+                    "code": "WALLET_IN_USE"
+                }
+            )
+        
+        # 3. If found and wallet.user_id == current_user.id, check if active or reactivate
+        if existing_wallet.is_active:
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "message": "This wallet address is already connected to your account",
+                    "code": "WALLET_ALREADY_CONNECTED"
+                }
+            )
+        
+        # Reactivate and update the existing soft-deleted wallet
+        existing_wallet.is_active = True
+        existing_wallet.wallet_type = wallet_type_enum
+        existing_wallet.asset_symbol = payload.asset_symbol.upper()
+        existing_wallet.address = address_original
+        existing_wallet.address_normalized = address_normalized
+        existing_wallet.updated_at = datetime.now(timezone.utc)
+        wallet = existing_wallet
+    else:
+        # 4. Only insert a new Wallet when no row exists at all
+        wallet = Wallet(
+            id=f"wallet_{uuid4()}",
+            user_id=current_user.id,
+            wallet_type=wallet_type_enum,
+            asset_symbol=payload.asset_symbol.upper(),
+            address=address_original,
+            address_normalized=address_normalized,
+            balance=0.0,
+            is_active=True,
+            created_at=datetime.now(timezone.utc)
         )
+        db.add(wallet)
     
-    # Create new wallet
-    new_wallet = Wallet(
-        id=f"wallet_{datetime.utcnow().timestamp()}_{current_user.id}",
-        user_id=current_user.id,
-        wallet_type=wallet_type_enum,
-        asset_symbol=asset_symbol.upper(),
-        address=address.strip(),
-        balance=0.0,
-        is_active=True
-    )
-    
-    db.add(new_wallet)
-    await db.commit()
-    await db.refresh(new_wallet)
+    try:
+        await db.commit()
+        await db.refresh(wallet)
+    except IntegrityError as err:
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="A conflict occurred while connecting the wallet address"
+        ) from err
     
     return {
         "message": "Wallet connected successfully",
         "wallet": {
-            "id": new_wallet.id,
-            "currency": new_wallet.asset_symbol,
-            "address": new_wallet.address,
-            "type": new_wallet.wallet_type.value,
-            "balance": new_wallet.balance,
-            "created_at": new_wallet.created_at
+            "id": wallet.id,
+            "currency": wallet.asset_symbol,
+            "address": wallet.address,
+            "type": wallet.wallet_type.value,
+            "balance": wallet.balance,
+            "created_at": wallet.created_at
         }
     }
 
@@ -83,7 +122,7 @@ async def get_connected_wallets(
     
     stmt = select(Wallet).where(
         Wallet.user_id == current_user.id,
-        Wallet.is_active == True
+        Wallet.is_active.is_(True)
     ).order_by(Wallet.created_at.desc())
     
     result = await db.execute(stmt)
@@ -134,6 +173,7 @@ async def disconnect_wallet(
     
     # Soft delete by marking as inactive
     wallet.is_active = False
+    wallet.updated_at = datetime.now(timezone.utc)
     await db.commit()
     
     return {"message": "Wallet disconnected successfully"}
