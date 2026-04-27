@@ -1,4 +1,6 @@
 import { UploadButton } from '@/utils/uploadthing';
+import { useState } from 'react';
+import { AlertModal } from '../shared/AlertModal';
 
 interface ImageUploadProps {
   label: string;
@@ -8,6 +10,31 @@ interface ImageUploadProps {
 }
 
 export function ImageUpload({ label, value, onChange, helperText }: Readonly<ImageUploadProps>) {
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'warning';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info', title: string = 'Notice') => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      type,
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="space-y-2">
       <label className="block text-text-secondary text-[10px] font-black uppercase tracking-widest font-mono">
@@ -37,7 +64,7 @@ export function ImageUpload({ label, value, onChange, helperText }: Readonly<Ima
                 }
               }}
               onUploadError={(error: any) => {
-                alert(`ERROR! ${error.message || 'Upload failed'}`);
+                showAlert(error.message || 'The image upload failed. Please try again.', 'error', 'Upload Error');
               }}
               appearance={{
                 button: "bg-transparent text-color-primary text-[8px] font-black uppercase tracking-widest p-0 h-auto w-auto after:hidden",
@@ -67,6 +94,14 @@ export function ImageUpload({ label, value, onChange, helperText }: Readonly<Ima
           )}
         </div>
       </div>
+
+      <AlertModal 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={closeAlert}
+      />
     </div>
   );
 }
