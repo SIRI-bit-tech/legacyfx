@@ -112,11 +112,10 @@ export default function AdminAssetsPage() {
         <div className="flex justify-end">
           <button
             onClick={() => toggleAsset(a.id, a.is_enabled)}
-            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition ${
-              a.is_enabled
+            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition ${a.is_enabled
                 ? 'bg-bg-tertiary text-text-tertiary border-color-border hover:bg-bg-elevated'
                 : 'bg-color-primary/10 text-color-primary border-color-primary/30 hover:bg-color-primary/20'
-            }`}
+              }`}
           >
             {a.is_enabled ? 'Disable' : 'Enable'}
           </button>
@@ -182,7 +181,7 @@ export default function AdminAssetsPage() {
           </form>
         </AdminModal>
 
-        <MessageModal 
+        <MessageModal
           isOpen={alertConfig.isOpen}
           title={alertConfig.title}
           message={alertConfig.message}
