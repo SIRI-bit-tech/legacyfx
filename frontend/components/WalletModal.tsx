@@ -9,6 +9,9 @@ interface WalletModalProps {
   onClose: () => void;
 }
 
+// Global set to track synced addresses across modal open/close cycles in the same session
+const syncedAddresses = new Set<string>();
+
 export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
   const { connect, connectors, isPending } = useConnect();
   const { address, isConnected } = useAccount();
@@ -41,7 +44,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
 
   // Sync with backend when account is connected
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && !syncedAddresses.has(address)) {
       const syncWithBackend = async () => {
         try {
           const response = await fetch('/api/v1/wallets/connect', {
@@ -57,12 +60,22 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
             })
           });
           
-          if (response.ok) {
-            showAlert('Wallet connected and synced successfully!', 'success', 'Success');
-            setTimeout(onClose, 2000);
+          const data = await response.json();
+          const isAlreadyConnected = response.status === 400 && 
+            (data.detail?.includes("already connected") || data.detail?.includes("already in use"));
+
+          if (response.ok || isAlreadyConnected) {
+            syncedAddresses.add(address);
+            if (response.ok) {
+              showAlert('Wallet connected and synced successfully!', 'success', 'Success');
+            }
+            // Even if already connected, we treat it as success for the UI flow
+            setTimeout(() => {
+              onClose();
+            }, 2000);
           } else {
             // Even if backend fails, the wallet is connected to the frontend
-            console.error('Failed to sync wallet with backend');
+            console.error('Failed to sync wallet with backend:', data.detail);
           }
         } catch (error) {
           console.error('Backend sync error:', error);
@@ -71,7 +84,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
       
       syncWithBackend();
     }
-  }, [isConnected, address, onClose]);
+  }, [isConnected, address]);
 
   const handleConnect = async (walletId: string) => {
     // Map our UI IDs to Wagmi connector IDs

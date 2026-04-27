@@ -1,3 +1,4 @@
+'use client';
 import { UploadButton } from '@/utils/uploadthing';
 import { useState } from 'react';
 import { AlertModal } from '../shared/AlertModal';
