@@ -113,16 +113,43 @@ app = FastAPI(
 )
 
 # CORS middleware
-_cors_origins = [
+_allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://legacyfx.vercel.app",
+    "https://legacy-fx.vercel.app",
+    "https://legacyfx.onrender.com",
 ]
-if settings.FRONTEND_URL and settings.FRONTEND_URL not in _cors_origins:
-    _cors_origins.append(settings.FRONTEND_URL)
 
+@app.middleware("http")
+async def cors_handler(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = JSONResponse(content="OK")
+        origin = request.headers.get("Origin")
+        if origin in _allowed_origins or not origin:
+            response.headers["Access-Control-Allow-Origin"] = origin or "*"
+        else:
+            # Fallback for preview deployments
+            response.headers["Access-Control-Allow-Origin"] = origin
+            
+        response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS, PUT, DELETE, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+    
+    response = await call_next(request)
+    origin = request.headers.get("Origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS, PUT, DELETE, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+# Keep the standard middleware as backup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
