@@ -4,6 +4,7 @@ import { DashboardLayout } from '../dashboard-layout';
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { AlertModal } from '../../components/shared/AlertModal';
 
 export default function SubscribePage() {
   const { user, refreshUser } = useAuth();
@@ -13,6 +14,30 @@ export default function SubscribePage() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'warning';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info', title: string = 'Notice') => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      type,
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, isOpen: false }));
+  };
 
   const plans = [
     { 
@@ -136,7 +161,7 @@ export default function SubscribePage() {
       setCurrentSubscription(sub);
       await refreshUser();
     } catch (err: any) {
-      alert(err.message || "Failed to submit request");
+      showAlert(err.message || "We encountered an issue submitting your request. Please try again or contact support.", 'error', 'Submission Failed');
     } finally {
       setLoading(false);
     }
@@ -362,6 +387,13 @@ export default function SubscribePage() {
           </div>
         )}
       </div>
+      <AlertModal 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={closeAlert}
+      />
     </DashboardLayout>
   );
 }

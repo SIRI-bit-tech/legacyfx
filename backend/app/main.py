@@ -42,6 +42,7 @@ from app.routes import (
     signals, subscriptions, admin, copy_trading, ably, transactions,
     real_estate, cold_storage, referrals
 )
+from app.routes import wallets
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -147,6 +148,7 @@ app.include_router(ably.router)
 app.include_router(real_estate.router)
 app.include_router(cold_storage.router)
 app.include_router(referrals.router)
+app.include_router(wallets.router)
 
 from fastapi.staticfiles import StaticFiles
 import os

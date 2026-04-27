@@ -182,3 +182,57 @@ export function PromptModal({
     </AdminModal>
   );
 }
+
+interface MessageModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  message: string;
+  buttonText?: string;
+  type?: 'info' | 'success' | 'error' | 'warning';
+}
+
+export function MessageModal({
+  isOpen,
+  onClose,
+  title,
+  message,
+  buttonText = "Understood",
+  type = 'info'
+}: MessageModalProps) {
+  const typeStyles = {
+    info: 'bg-color-primary/10 text-color-primary border-color-primary/20',
+    success: 'bg-color-success/10 text-color-success border-color-success/20',
+    error: 'bg-color-danger/10 text-color-danger border-color-danger/20',
+    warning: 'bg-color-warning/10 text-color-warning border-color-warning/20',
+  };
+
+  const buttonStyles = {
+    info: 'bg-color-primary hover:bg-color-primary/90',
+    success: 'bg-color-success hover:bg-color-success/90',
+    error: 'bg-color-danger hover:bg-color-danger/90',
+    warning: 'bg-color-warning hover:bg-color-warning/90',
+  };
+
+  return (
+    <AdminModal isOpen={isOpen} onClose={onClose} title={title}>
+      <div className="space-y-6 text-center">
+        <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center text-2xl border ${typeStyles[type]}`}>
+          <i className={`pi ${
+            type === 'success' ? 'pi-check-circle' : 
+            type === 'error' ? 'pi-exclamation-circle' : 
+            type === 'warning' ? 'pi-exclamation-triangle' : 
+            'pi-info-circle'
+          }`} />
+        </div>
+        <p className="text-text-secondary leading-relaxed">{message}</p>
+        <button
+          onClick={onClose}
+          className={`w-full py-3.5 text-bg-primary rounded-lg font-black transition-all transform active:scale-95 shadow-lg uppercase text-xs tracking-widest ${buttonStyles[type]}`}
+        >
+          {buttonText}
+        </button>
+      </div>
+    </AdminModal>
+  );
+}

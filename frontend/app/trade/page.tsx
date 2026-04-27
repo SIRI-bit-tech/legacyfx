@@ -1,7 +1,7 @@
 'use client';
 
 import { DashboardLayout } from '../dashboard-layout';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { TradeTopBar } from '@/components/trade/TradeTopBar';
 import { OrderBook } from '@/components/trade/OrderBook';
 import { OpenOrders } from '@/components/trade/OpenOrders';
@@ -46,7 +46,7 @@ const normalizeAppSymbol = (raw: string): string => {
     .trim();
 };
 
-export default function TradePage() {
+function TradePageContent() {
   const searchParams = useSearchParams();
   const querySymbol = searchParams.get('symbol');
 
@@ -416,5 +416,17 @@ export default function TradePage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function TradePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <div className="text-text-tertiary">Loading Trade Station...</div>
+      </div>
+    }>
+      <TradePageContent />
+    </Suspense>
   );
 }

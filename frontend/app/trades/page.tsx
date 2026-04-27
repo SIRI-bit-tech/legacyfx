@@ -45,7 +45,7 @@ export default function TradesPage() {
     }
     try {
       setSubmitting(true);
-      const endpoint = tradeType === 'BUY' ? API_ENDPOINTS.TRADES.BUY : API_ENDPOINTS.TRADES.SELL;
+      const endpoint = API_ENDPOINTS.TRADES.CREATE;
       await api.post(endpoint, { symbol, quantity, trade_type: tradeType });
       setSymbol('BTC');
       setQuantity(1);

@@ -6,7 +6,7 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminAuthGuard } from '@/components/admin/AdminAuthGuard';
 import { AdminTable, TableColumn } from '@/components/admin/AdminTable';
 import { AdminBadge } from '@/components/admin/AdminBadge';
-import { AdminModal } from '@/components/admin/AdminModal';
+import { AdminModal, MessageModal } from '@/components/admin/AdminModal';
 import { adminApi } from '@/lib/adminApi';
 
 export default function AdminAssetsPage() {
@@ -14,6 +14,30 @@ export default function AdminAssetsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [newAsset, setNewAsset] = useState({ symbol: '', name: '' });
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'warning';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info', title: string = 'Admin Action') => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      type,
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertConfig(prev => ({ ...prev, isOpen: false }));
+  };
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -31,16 +55,12 @@ export default function AdminAssetsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchAssets();
-  }, [fetchAssets]);
-
   const toggleAsset = async (id: string, current: boolean) => {
     try {
       await adminApi.patch(`/admin/assets/${id}/toggle`, { is_enabled: !current });
       await fetchAssets();
     } catch (err) {
-      alert('Failed to toggle asset');
+      showAlert('Failed to toggle asset status. Please check your connection.', 'error', 'Error');
     }
   };
 
@@ -51,8 +71,9 @@ export default function AdminAssetsPage() {
       setModalOpen(false);
       setNewAsset({ symbol: '', name: '' });
       await fetchAssets();
+      showAlert('Asset added successfully!', 'success', 'Success');
     } catch (err) {
-      alert('Failed to add asset');
+      showAlert('Failed to add new asset. Ensure the symbol is unique.', 'error', 'Error');
     }
   };
 
@@ -160,6 +181,14 @@ export default function AdminAssetsPage() {
             </button>
           </form>
         </AdminModal>
+
+        <MessageModal 
+          isOpen={alertConfig.isOpen}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          onClose={closeAlert}
+        />
       </AdminLayout>
     </AdminAuthGuard>
   );

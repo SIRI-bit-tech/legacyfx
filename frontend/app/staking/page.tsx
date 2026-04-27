@@ -111,14 +111,14 @@ export default function StakingPage() {
 
 
   return (
-    <div className="min-h-screen p-4" style={{ backgroundColor: COLORS.BG }}>
+    <div className="min-h-screen p-4" style={{ backgroundColor: COLORS.bgPrimary }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: COLORS.TEXT }}>
+          <h1 className="text-3xl font-bold mb-2" style={{ color: COLORS.textPrimary }}>
             Staking
           </h1>
-          <p style={{ color: COLORS.TEXT_SECONDARY }}>
+          <p style={{ color: COLORS.textSecondary }}>
             Earn passive rewards by staking your assets
           </p>
         </div>
@@ -132,13 +132,13 @@ export default function StakingPage() {
               className="px-4 py-2 rounded font-semibold transition-all whitespace-nowrap"
               style={{
                 backgroundColor:
-                  activeTab === tab.id ? COLORS.PRIMARY : "transparent",
+                  activeTab === tab.id ? COLORS.primary : "transparent",
                 color:
-                  activeTab === tab.id ? COLORS.BUTTON_TEXT : COLORS.TEXT_SECONDARY,
+                  activeTab === tab.id ? COLORS.bgSecondary : COLORS.textSecondary,
                 borderBottom:
                   activeTab === tab.id
-                    ? `2px solid ${COLORS.PRIMARY}`
-                    : `2px solid ${COLORS.BORDER}`,
+                    ? `2px solid ${COLORS.primary}`
+                    : `2px solid ${COLORS.border}`,
               }}
             >
               {tab.label}
@@ -174,11 +174,11 @@ export default function StakingPage() {
               <div
                 className="rounded-lg p-6"
                 style={{
-                  backgroundColor: COLORS.CARD_BG,
-                  border: `1px solid ${COLORS.BORDER}`,
+                  backgroundColor: COLORS.bgTertiary,
+                  border: `1px solid ${COLORS.border}`,
                 }}
               >
-                <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.TEXT }}>
+                <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.textPrimary }}>
                   Recent Payouts
                 </h3>
                 <RecentPayoutsTable
@@ -200,12 +200,12 @@ export default function StakingPage() {
                   style={{
                     backgroundColor:
                       stakingTypeFilter === undefined
-                        ? COLORS.PRIMARY
-                        : COLORS.BORDER,
+                        ? COLORS.primary
+                        : COLORS.border,
                     color:
                       stakingTypeFilter === undefined
-                        ? COLORS.BUTTON_TEXT
-                        : COLORS.TEXT_SECONDARY,
+                        ? COLORS.bgSecondary
+                        : COLORS.textSecondary,
                   }}
                 >
                   All Pools
@@ -221,11 +221,11 @@ export default function StakingPage() {
                     className="px-4 py-2 rounded font-semibold transition-all"
                     style={{
                       backgroundColor:
-                        stakingTypeFilter === type ? COLORS.PRIMARY : COLORS.BORDER,
+                        stakingTypeFilter === type ? COLORS.primary : COLORS.border,
                       color:
                         stakingTypeFilter === type
-                          ? COLORS.BUTTON_TEXT
-                          : COLORS.TEXT_SECONDARY,
+                          ? COLORS.bgSecondary
+                          : COLORS.textSecondary,
                     }}
                   >
                     {type === "FLEXIBLE" ? "Flexible" : `${type.replace("FIXED_", "")}-Day`}
@@ -246,11 +246,11 @@ export default function StakingPage() {
             <div
               className="rounded-lg p-6"
               style={{
-                backgroundColor: COLORS.CARD_BG,
-                border: `1px solid ${COLORS.BORDER}`,
+                backgroundColor: COLORS.bgTertiary,
+                border: `1px solid ${COLORS.border}`,
               }}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.TEXT }}>
+              <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.textPrimary }}>
                 Active Positions
               </h3>
               <ActiveStakesTable
@@ -266,11 +266,11 @@ export default function StakingPage() {
             <div
               className="rounded-lg p-6"
               style={{
-                backgroundColor: COLORS.CARD_BG,
-                border: `1px solid ${COLORS.BORDER}`,
+                backgroundColor: COLORS.bgTertiary,
+                border: `1px solid ${COLORS.border}`,
               }}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.TEXT }}>
+              <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.textPrimary }}>
                 Reward History
               </h3>
               <RecentPayoutsTable
