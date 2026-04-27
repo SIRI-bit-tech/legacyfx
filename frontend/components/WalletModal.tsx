@@ -61,24 +61,30 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
           });
           
           const data = await response.json();
-          const isAlreadyConnected = response.status === 400 && 
-            (data.detail?.includes("already connected") || data.detail?.includes("already in use"));
+          const errorCode = typeof data.detail === 'object' ? data.detail.code : null;
+          const detailMessage = typeof data.detail === 'object' ? data.detail.message : data.detail;
+
+          const isAlreadyConnected = errorCode === "WALLET_ALREADY_CONNECTED";
 
           if (response.ok || isAlreadyConnected) {
             syncedAddresses.add(address);
             if (response.ok) {
               showAlert('Wallet connected and synced successfully!', 'success', 'Success');
             }
-            // Even if already connected, we treat it as success for the UI flow
+            // If already connected, we can silently treat it as success or show a message
+            // and close the modal after a delay.
             setTimeout(() => {
               onClose();
             }, 2000);
           } else {
-            // Even if backend fails, the wallet is connected to the frontend
+            // This includes WALLET_IN_USE or other errors
+            const errorMessage = detailMessage || 'Failed to sync wallet with backend';
+            showAlert(errorMessage, 'error', 'Sync Error');
             console.error('Failed to sync wallet with backend:', data.detail);
           }
         } catch (error) {
           console.error('Backend sync error:', error);
+          showAlert('An unexpected error occurred while syncing your wallet.', 'error', 'Error');
         }
       };
       

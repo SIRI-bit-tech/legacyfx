@@ -38,10 +38,11 @@ async def connect_wallet(
             detail=f"Invalid wallet type. Must be one of: {[wt.value for wt in WalletType]}"
         ) from err
     
-    clean_address = payload.address.strip()
+    address_original = payload.address.strip()
+    address_normalized = address_original.lower()
     
-    # 1. Query Wallet by address (global search to identify existing owners)
-    stmt = select(Wallet).where(Wallet.address == clean_address)
+    # 1. Query Wallet by address (global search using normalized address)
+    stmt = select(Wallet).where(Wallet.address_normalized == address_normalized)
     result = await db.execute(stmt)
     existing_wallet = result.scalar_one_or_none()
     
@@ -50,20 +51,28 @@ async def connect_wallet(
         if existing_wallet.user_id != current_user.id:
             raise HTTPException(
                 status_code=400,
-                detail="This wallet address is already in use by another account"
+                detail={
+                    "message": "This wallet address is already in use by another account",
+                    "code": "WALLET_IN_USE"
+                }
             )
         
         # 3. If found and wallet.user_id == current_user.id, check if active or reactivate
         if existing_wallet.is_active:
             raise HTTPException(
                 status_code=400, 
-                detail="This wallet address is already connected to your account"
+                detail={
+                    "message": "This wallet address is already connected to your account",
+                    "code": "WALLET_ALREADY_CONNECTED"
+                }
             )
         
         # Reactivate and update the existing soft-deleted wallet
         existing_wallet.is_active = True
         existing_wallet.wallet_type = wallet_type_enum
         existing_wallet.asset_symbol = payload.asset_symbol.upper()
+        existing_wallet.address = address_original
+        existing_wallet.address_normalized = address_normalized
         existing_wallet.updated_at = datetime.now(timezone.utc)
         wallet = existing_wallet
     else:
@@ -73,7 +82,8 @@ async def connect_wallet(
             user_id=current_user.id,
             wallet_type=wallet_type_enum,
             asset_symbol=payload.asset_symbol.upper(),
-            address=clean_address,
+            address=address_original,
+            address_normalized=address_normalized,
             balance=0.0,
             is_active=True,
             created_at=datetime.now(timezone.utc)
