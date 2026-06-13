@@ -107,8 +107,8 @@ app.add_middleware(SlowAPIMiddleware)
 _allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://primemeridianmarkets.vercel.app",
-    "https://legacy-fx.vercel.app",
+    "https://primemeridianmarkets.com",
+    "https://www.primemeridianmarkets.com",
     "https://primemeridianmarkets.vercel.app",
     "https://primemeridianmarkets.onrender.com",
 ]
