@@ -75,11 +75,8 @@ export function Sidebar() {
         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
       {/* Logo */}
-      <div className="p-8 border-b border-color-border flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-color-primary flex items-center justify-center text-bg-primary shadow-lg shadow-color-primary/20">
-           <i className="pi pi-bolt font-black"></i>
-        </div>
-        <h1 className="font-display text-xl font-black text-text-primary tracking-tighter">PRIME MERIDIAN<span className="text-color-primary"> MARKETS</span></h1>
+      <div className="p-6 border-b border-color-border flex justify-center">
+        <img src="/pmm-logo.png" alt="Prime Meridian Markets Logo" className="h-14 w-auto" />
       </div>
 
       {/* Navigation */}

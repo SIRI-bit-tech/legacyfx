@@ -7,10 +7,8 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-[100] bg-[#0B0E11]/80 backdrop-blur-md border-b border-[#2B3139]">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-4 md:gap-8">
-          <Link href="/" className="flex items-center gap-2 group shrink-0">
-            <span className="text-xl md:text-2xl font-display font-bold text-color-primary group-hover:text-color-primary-hover transition-colors">
-              Prime Meridian Markets
-            </span>
+          <Link href="/" className="flex items-center group shrink-0">
+            <img src="/pmm-logo.png" alt="Prime Meridian Markets Logo" className="h-12 md:h-16 w-auto" />
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-text-secondary">

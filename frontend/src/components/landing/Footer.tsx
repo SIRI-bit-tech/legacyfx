@@ -9,7 +9,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-20">
           <div className="md:col-span-4">
             <Link href="/" className="inline-block mb-6">
-              <span className="text-2xl font-display font-bold text-color-primary">Prime Meridian Markets</span>
+              <img src="/pmm-logo.png" alt="Prime Meridian Markets Logo" className="h-12 md:h-16 w-auto" />
             </Link>
             <p className="text-text-secondary max-w-xs leading-relaxed mb-8">
               The premier choice for institutional digital asset management. 
