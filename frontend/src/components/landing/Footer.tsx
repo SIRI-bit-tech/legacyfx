@@ -62,10 +62,12 @@ export default function Footer() {
           <div className="text-text-tertiary text-xs tracking-wide">
             &copy; {new Date().getFullYear()} Prime Meridian Markets Global Limited. All rights reserved.
           </div>
-          <div className="flex gap-8 text-xs text-text-tertiary uppercase tracking-widest">
-            <Link href="#" className="hover:text-text-secondary">Privacy Policy</Link>
-            <Link href="#" className="hover:text-text-secondary">Terms of Service</Link>
-            <Link href="#" className="hover:text-text-secondary">Security Disclosure</Link>
+          <div className="flex flex-wrap gap-x-8 gap-y-4 justify-center md:justify-end text-xs text-text-tertiary uppercase tracking-widest max-w-xl">
+            <Link href="/privacy-policy" className="hover:text-text-secondary">Privacy Policy</Link>
+            <Link href="/terms-of-service" className="hover:text-text-secondary">Terms of Service</Link>
+            <Link href="/security-disclosure" className="hover:text-text-secondary">Security Disclosure</Link>
+            <Link href="/risk-warning" className="hover:text-text-secondary">Risk Warning</Link>
+            <Link href="/aml-kyc-policy" className="hover:text-text-secondary">AML/KYC Policy</Link>
           </div>
         </div>
       </div>
