@@ -14,9 +14,9 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-text-secondary">
-            <Link href="#markets" className="hover:text-text-primary transition-colors">Markets</Link>
-            <Link href="#trading" className="hover:text-text-primary transition-colors">Investing</Link>
-            <Link href="#institutional" className="hover:text-text-primary transition-colors">Institutional</Link>
+            <Link href="/global-markets" className="hover:text-text-primary transition-colors">Markets</Link>
+            <Link href="/investing" className="hover:text-text-primary transition-colors">Investing</Link>
+            <Link href="/institutional" className="hover:text-text-primary transition-colors">Institutional</Link>
           </div>
         </div>
 
