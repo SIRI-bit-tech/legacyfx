@@ -22,6 +22,23 @@ async def create_order(
     db: AsyncSession = Depends(get_db)
 ):
     """Place a new trade order."""
+    
+    if not current_user.two_factor_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="2FA is not enabled for this account. Please enable 2FA to place trades."
+        )
+        
+    if not request.two_fa_code:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="2FA code is required for trading."
+        )
+
+    from app.utils.auth import verify_totp
+    if not verify_totp(current_user.two_factor_secret, request.two_fa_code):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+            
     # 1. Validate Trading Pair
     stmt = select(TradingPair).where(TradingPair.symbol == request.symbol, TradingPair.is_active == True)
     pair_result = await db.execute(stmt)

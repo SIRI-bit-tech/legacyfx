@@ -29,7 +29,7 @@ class ReferralService:
         for _ in range(max_attempts):
             clean_username = username.upper().replace('_', '')
             random_suffix = ''.join([str(random.randint(0, 9)) for _ in range(4)])
-            code = f"LEGACY{clean_username}{random_suffix}"
+            code = f"PRIME{clean_username}{random_suffix}"
             
             # Check uniqueness
             stmt = select(User).where(User.referral_code == code)
@@ -38,7 +38,7 @@ class ReferralService:
                 return code
         
         # Fallback to UUID if all attempts fail
-        return f"LEGACY_{uuid.uuid4().hex[:8].upper()}"
+        return f"PRIME_{uuid.uuid4().hex[:8].upper()}"
     
     @staticmethod
     async def process_referral_signup(

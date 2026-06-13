@@ -62,6 +62,7 @@ export function ImageUpload({ label, value, onChange, helperText }: Readonly<Ima
                 if (res?.[0]) {
                   const finalUrl = res[0].ufsUrl || res[0].url;
                   onChange(finalUrl);
+                  showAlert('Image uploaded successfully.', 'success', 'Upload Success');
                 }
               }}
               onUploadError={(error: any) => {

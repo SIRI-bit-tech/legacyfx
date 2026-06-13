@@ -12,7 +12,7 @@ export default function ConnectWalletPage() {
              <i className="pi pi-link"></i>
           </div>
           <h1 className="text-4xl font-black text-text-primary mb-4 tracking-tight">External Wallet Hub</h1>
-          <p className="text-text-secondary text-lg max-w-xl mx-auto">Link your decentralized identity to Legacy FX. Unlock institutional-grade liquidity directly from your self-custody wallet.</p>
+          <p className="text-text-secondary text-lg max-w-xl mx-auto">Link your decentralized identity to Prime Meridian Markets. Unlock institutional-grade liquidity directly from your self-custody wallet.</p>
         </header>
 
         <div className="w-full max-w-md">
@@ -24,7 +24,7 @@ export default function ConnectWalletPage() {
         <div className="mt-16 p-8 bg-bg-tertiary/30 border border-color-border rounded-3xl w-full text-center">
            <h4 className="text-text-primary font-bold mb-8 flex items-center justify-center gap-2 tracking-tight">
               <i className="pi pi-shield text-color-success"></i>
-              Why secure your wallet with Legacy FX?
+              Why secure your wallet with Prime Meridian Markets?
            </h4>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
               {[

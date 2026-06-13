@@ -184,7 +184,7 @@ export default function SettingsPage() {
    const handleDeleteAccount = () => {
       showConfirm(
          'Delete Account',
-         'You are about to permanently delete your entire Legacy FX account. This will erase all trades, documents, and funds. This action is irreversible.',
+         'You are about to permanently delete your entire Prime Meridian Markets account. This will erase all trades, documents, and funds. This action is irreversible.',
          async () => {
             try {
                await api.delete('/users/account');

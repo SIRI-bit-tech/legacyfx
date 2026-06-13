@@ -30,7 +30,7 @@ export default function InstitutionalGrade() {
         <div className="text-center mb-20">
           <h2 className="font-display text-4xl font-bold text-text-primary mb-4 tracking-tight">Designed for Sophistication</h2>
           <p className="text-text-secondary text-lg max-w-2xl mx-auto">
-            Beyond standard trading—Legacy FX provides the infrastructure needed to manage complex digital asset portfolios with precision.
+            Beyond standard trading—Prime Meridian Markets provides the infrastructure needed to manage complex digital asset portfolios with precision.
           </p>
         </div>
 

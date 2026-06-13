@@ -183,6 +183,10 @@ function TradePageContent() {
                 </div>
                  <button 
                   onClick={() => {
+                    if (!user?.two_fa_enabled) {
+                      setTradeAlert({ isOpen: true, title: '2FA Required', message: 'You must enable Two-Factor Authentication in your profile security settings before placing trades.', type: 'warning' });
+                      return;
+                    }
                     if (user?.one_click_trading) {
                       setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} ${amount} ${symbol} executed at market price.`, type: 'success' });
                     } else if (user?.confirmation_dialogs === false) {

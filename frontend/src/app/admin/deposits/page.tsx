@@ -58,6 +58,15 @@ export default function AdminDepositsPage() {
     { key: 'network', header: 'Network', render: (d) => <span className="text-text-secondary text-[10px] font-bold uppercase tracking-wider">{d.blockchain_network}</span> },
     { key: 'status', header: 'Status', render: (d) => <AdminBadge status={d.status} /> },
     { key: 'date', header: 'Date', render: (d) => <span className="text-text-tertiary text-xs">{new Date(d.created_at).toLocaleDateString()}</span> },
+    { 
+      key: 'proof', 
+      header: 'Proof', 
+      render: (d) => d.proof_url ? (
+        <a href={d.proof_url} target="_blank" rel="noreferrer" className="text-color-primary hover:underline flex items-center gap-1 text-[10px]">
+          <i className="pi pi-image" /> View
+        </a>
+      ) : <span className="text-text-tertiary text-[10px]">None</span> 
+    },
     {
       key: 'actions',
       header: '',
@@ -110,7 +119,7 @@ export default function AdminDepositsPage() {
         <div className="bg-bg-secondary p-1 rounded-xl shadow-sm">
           <AdminTable
             columns={columns}
-            data={deposits}
+            data={deposits.filter(d => (!filters.asset || d.asset_symbol === filters.asset) && (!filters.status || d.status === filters.status))}
             loading={loading}
             emptyMessage="No deposits matching filters."
           />

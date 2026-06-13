@@ -40,7 +40,7 @@ export default function Home() {
         <section className="py-32 bg-gradient-to-b from-transparent to-color-primary/10">
           <div className="max-w-[1440px] mx-auto px-6 text-center">
             <h2 className="font-display text-4xl md:text-6xl font-bold text-text-primary mb-8 tracking-tight px-4">
-              Ready to claim your legacy?
+              Ready to start your journey?
             </h2>
             <p className="text-text-secondary text-xl mb-12 max-w-xl mx-auto">
               Join the world&apos;s most sophisticated digital asset ecosystem. 

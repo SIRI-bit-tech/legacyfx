@@ -90,13 +90,13 @@ async def subscribe_user(
                     detail=f"You are already subscribed to {plan.name}."
                 )
             # Tier Ranking check
-            tier_ranks = {"BASIC": 0, "PRO": 1, "ELITE": 2, "LEGACY_MASTER": 3}
+            tier_ranks = {"BASIC": 0, "PRO": 1, "ELITE": 2, "PRIME_MASTER": 3}
             current_rank = tier_ranks.get(current_user.tier, 0)
             requested_rank = tier_ranks.get(plan.name.upper().replace(' ', '_'), 0) # Fallback if name doesn't match
             
             # More explicit match for your plan IDs/Names
             plan_name = plan.name.upper()
-            if "LEGACY MASTER" in plan_name: requested_rank = 3
+            if "PRIME MASTER" in plan_name: requested_rank = 3
             elif "ELITE" in plan_name: requested_rank = 2
             elif "PRO" in plan_name: requested_rank = 1
 
@@ -143,7 +143,7 @@ async def subscribe_user(
     background_tasks.add_task(
         send_email,
         current_user.email,
-        "Subscription Payment Pending - Legacy FX",
+        "Subscription Payment Pending - Prime Meridian Markets",
         email_content
     )
     

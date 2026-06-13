@@ -46,12 +46,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        # Institutional grade: default access token to 15 minutes
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        # Institutional grade: default access token to 30 minutes
+        expire = datetime.utcnow() + timedelta(minutes=30)
     
     # Add unique JWT ID for revocation
     jti = str(uuid.uuid4())
-    to_encode.update({"exp": expire, "jti": jti, "type": "access"})
+    token_type = to_encode.get("type", "access")
+    to_encode.update({"exp": expire, "jti": jti, "type": token_type})
     
     encoded_jwt = jwt.encode(
         to_encode,
@@ -71,7 +72,8 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
         expire = datetime.utcnow() + timedelta(days=7)
     
     jti = str(uuid.uuid4())
-    to_encode.update({"exp": expire, "jti": jti, "type": "refresh"})
+    token_type = to_encode.get("type", "refresh")
+    to_encode.update({"exp": expire, "jti": jti, "type": token_type})
     
     encoded_jwt = jwt.encode(
         to_encode,
@@ -167,7 +169,7 @@ def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
 
-def get_totp_uri(secret: str, email: str, issuer: str = "Legacy FX") -> str:
+def get_totp_uri(secret: str, email: str, issuer: str = "Prime Meridian Markets") -> str:
     """Get TOTP URI for QR code generation."""
     totp = pyotp.TOTP(secret)
     return totp.provisioning_uri(name=email, issuer_name=issuer)

@@ -341,14 +341,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Access Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
            {[
              { name: 'Trade', icon: 'pi pi-sync', href: '/trade', desc: 'Exchange assets' },
              { name: 'Deposit', icon: 'pi pi-plus-circle', href: '/deposit', desc: 'Add funds' },
              { name: 'Withdraw', icon: 'pi pi-minus-circle', href: '/withdraw', desc: 'Move funds' },
-             { name: 'Mining', icon: 'pi pi-bolt', href: '/mining', desc: 'Cloud power' },
-             { name: 'Staking', icon: 'pi pi-database', href: '/stake', desc: 'Earn passive' },
-             { name: 'Vaults', icon: 'pi pi-lock', href: '/cold-storage', desc: 'Secure assets' },
            ].map((action) => (
              <Link key={action.name} href={action.href} className="bg-bg-secondary border border-color-border p-5 rounded-2xl hover:border-color-primary/50 hover:bg-bg-tertiary transition group shadow-md flex flex-col items-center text-center">
                 <div className="w-10 h-10 rounded-xl bg-bg-tertiary flex items-center justify-center text-text-tertiary group-hover:text-color-primary transition mb-3">

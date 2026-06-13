@@ -36,12 +36,12 @@ export function Sidebar() {
   };
 
   const featureTiers: Record<string, string[]> = {
-    'Mining': ['PRO', 'ELITE', 'LEGACY_MASTER'],
-    'Stake': ['ELITE', 'LEGACY_MASTER'],
-    'Cold Storage': ['ELITE', 'LEGACY_MASTER'],
-    'Copy Trading': ['LEGACY_MASTER'],
-    'Signals': ['LEGACY_MASTER'],
-    'Real Estate': ['LEGACY_MASTER'],
+    'Mining': ['PRO', 'ELITE', 'PRIME_MASTER'],
+    'Stake': ['ELITE', 'PRIME_MASTER'],
+    'Cold Storage': ['ELITE', 'PRIME_MASTER'],
+    'Copy Trading': ['PRIME_MASTER'],
+    'Signals': ['PRIME_MASTER'],
+    'Real Estate': ['PRIME_MASTER'],
   };
 
   const isLocked = (name: string) => {
@@ -79,7 +79,7 @@ export function Sidebar() {
         <div className="w-8 h-8 rounded-lg bg-color-primary flex items-center justify-center text-bg-primary shadow-lg shadow-color-primary/20">
            <i className="pi pi-bolt font-black"></i>
         </div>
-        <h1 className="font-display text-xl font-black text-text-primary tracking-tighter">LEGACY<span className="text-color-primary">FX</span></h1>
+        <h1 className="font-display text-xl font-black text-text-primary tracking-tighter">PRIME MERIDIAN<span className="text-color-primary"> MARKETS</span></h1>
       </div>
 
       {/* Navigation */}

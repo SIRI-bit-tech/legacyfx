@@ -11,7 +11,15 @@ export function useMarketData() {
     const fetchPrices = async () => {
       try {
         const data = await api.get(API_ENDPOINTS.MARKETS.PRICES);
-        setPrices(data.prices || {});
+        if (Array.isArray(data)) {
+          const pricesMap: Record<string, number> = {};
+          data.forEach((item: any) => {
+            if (item.symbol) {
+              pricesMap[item.symbol.toUpperCase()] = item.current_price;
+            }
+          });
+          setPrices(pricesMap);
+        }
         setError(null);
       } catch (err: any) {
         setError(err.message);
@@ -37,8 +45,14 @@ export function usePrice(symbol: string) {
   useEffect(() => {
     const fetchPrice = async () => {
       try {
-        const data = await api.get(API_ENDPOINTS.MARKETS.PRICE(symbol));
-        setPrice(data.price);
+        const data: any = await api.get(API_ENDPOINTS.MARKETS.PRICES);
+        if (Array.isArray(data)) {
+          const baseSymbol = symbol.replace('USDT', '').toUpperCase();
+          const coin = data.find((c: any) => c.symbol.toUpperCase() === baseSymbol);
+          if (coin && coin.current_price) {
+            setPrice(coin.current_price);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch price:', err);
       } finally {

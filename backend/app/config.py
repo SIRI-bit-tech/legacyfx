@@ -5,7 +5,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://localhost/legacyfx"
+    DATABASE_URL: str = "postgresql+asyncpg://localhost/primemeridianmarkets"
     REDIS_URL: str = "redis://localhost:6379"
 
     # Better Auth
@@ -51,13 +51,14 @@ class Settings(BaseSettings):
 
     # Email
     SENDGRID_API_KEY: str = ""
-    FROM_EMAIL: str = "noreply@legacyfx.com"
-    SMTP_HOST: str = "smtp.gmail.com"
+    RESEND_API_KEY: str = ""
+    FROM_EMAIL: str = "noreply@primemeridianmarkets.com"
+    SMTP_HOST: str = "smtp.resend.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str = ""
+    SMTP_USER: str = "resend"
     SMTP_PASSWORD: str = ""
     SMTP_TLS: bool = True
-    EMAIL_FROM: str = "noreply@legacyfx.com"
+    EMAIL_FROM: str = "noreply@primemeridianmarkets.com"
 
     # Frontend
     FRONTEND_URL: str = _DEFAULT_FRONTEND
@@ -82,7 +83,7 @@ class Settings(BaseSettings):
     SESSION_WARNING_MINUTES: int = 14
     MAX_LOGIN_ATTEMPTS: int = 10
     LOGIN_LOCKOUT_MINUTES: int = 30
-    TOTP_ISSUER: str = "Legacy FX"
+    TOTP_ISSUER: str = "Prime Meridian Markets"
 
     # Rate Limiting
     RATE_LIMIT_ENABLED: bool = True
@@ -95,7 +96,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
 
     # Admin Portal
-    ADMIN_REGISTRATION_CODE: str = "LEGACY_ADMIN_2024"
+    ADMIN_REGISTRATION_CODE: str = "PRIME_ADMIN_2024"
     UPLOADTHING_SECRET: str = ""
     UPLOADTHING_APP_ID: str = ""
 
@@ -124,7 +125,7 @@ class Settings(BaseSettings):
     SIGNALS_STOCKS: str = "AAPL,TSLA,MSFT,AMZN,GOOGL,META,NVDA,NFLX"
 
     # Referral System
-    REFERRAL_BASE_URL: str = "https://legacyfx.com/signup"
+    REFERRAL_BASE_URL: str = "https://primemeridianmarkets.com/signup"
     REFERRAL_TIER2_THRESHOLD: int = 5      # 5 active referrals = tier 2
     REFERRAL_TIER3_THRESHOLD: int = 20     # 20 active referrals = tier 3
     REFERRAL_TIER1_RATE: float = 0.10      # 10% commission

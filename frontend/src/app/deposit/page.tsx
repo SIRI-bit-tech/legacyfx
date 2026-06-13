@@ -6,17 +6,29 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 import { KYCGuard } from '@/components/user/KYCGuard';
+import { UploadDropzone } from '@/utils/uploadthing';
+import toast from 'react-hot-toast';
+
+import { usePrice } from '@/hooks/useMarketData';
 
 export default function DepositPage() {
   const [selectedAsset, setSelectedAsset] = useState('BTC');
-  const [amount, setAmount] = useState('0.1');
+  const [usdAmount, setUsdAmount] = useState('');
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [pendingDepositId, setPendingDepositId] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  const { price } = usePrice(selectedAsset === 'USDT' ? 'BTCUSDT' : `${selectedAsset}USDT`);
+  const currentPrice = selectedAsset === 'USDT' ? 1 : (price || 0);
+  const cryptoAmount = (usdAmount && currentPrice > 0) ? (Number.parseFloat(usdAmount) / currentPrice).toFixed(8) : '0';
 
   const assets = [
     { name: 'Bitcoin', symbol: 'BTC' },
     { name: 'Ethereum', symbol: 'ETH' },
-    { name: 'USDT (ERC20)', symbol: 'USDT' },
+    { name: 'USDT (TRC20)', symbol: 'USDT' },
   ];
 
   const currentAsset = assets.find(a => a.symbol === selectedAsset) || assets[0];
@@ -28,16 +40,35 @@ export default function DepositPage() {
   const fetchAddress = async () => {
     setLoading(true);
     try {
-      const res: any = await api.post(API_ENDPOINTS.DEPOSITS.REQUEST, {
-        asset_symbol: selectedAsset,
-        amount: Number.parseFloat(amount) || 0.1,
-        blockchain_network: selectedAsset === 'BTC' ? 'BITCOIN' : 'ERC20'
-      });
+      const network = selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ERC20' : 'TRC20';
+      const res: any = await api.get(`${API_ENDPOINTS.DEPOSITS.ADDRESS}?asset_symbol=${selectedAsset}&blockchain_network=${network}`);
       setAddress(res.wallet_address);
     } catch (e) {
       console.error('Failed to fetch address:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMadeDeposit = async () => {
+    if (!usdAmount || Number.parseFloat(usdAmount) <= 0) {
+      toast.error('Please enter a valid USD amount first.');
+      return;
+    }
+    setSubmitLoading(true);
+    try {
+      const res: any = await api.post(API_ENDPOINTS.DEPOSITS.REQUEST, {
+        asset_symbol: selectedAsset,
+        amount: Number.parseFloat(cryptoAmount),
+        fiat_amount: Number.parseFloat(usdAmount),
+        blockchain_network: selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ERC20' : 'TRC20'
+      });
+      setPendingDepositId(res.id);
+      setShowProofModal(true);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to initialize deposit request.');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -92,20 +123,27 @@ export default function DepositPage() {
               </div>
 
               <div className="bg-bg-secondary border border-color-border p-6 rounded-lg">
-                <label htmlFor="deposit-amount" className="block text-sm font-medium text-text-secondary mb-2">Deposit Amount (Optional)</label>
+                <label htmlFor="deposit-amount" className="block text-sm font-medium text-text-secondary mb-2">Deposit Amount (USD Required)</label>
                 <div className="relative">
+                  <span className="absolute left-4 top-3.5 text-text-secondary font-bold">$</span>
                   <input
                     id="deposit-amount"
                     type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    value={usdAmount}
+                    onChange={(e) => setUsdAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-bg-tertiary border border-color-border rounded px-4 py-3 focus:outline-none focus:border-color-primary transition text-text-primary"
+                    className="w-full bg-bg-tertiary border border-color-border rounded pl-8 pr-12 py-3 focus:outline-none focus:border-color-primary transition text-text-primary"
                   />
-                  <span className="absolute right-4 top-3.5 text-text-tertiary font-bold">{selectedAsset}</span>
+                  <span className="absolute right-4 top-3.5 text-text-tertiary font-bold">USD</span>
                 </div>
-                <p className="mt-2 text-xs text-text-tertiary">
-                  Enter the amount you plan to send to see current confirmation status.
+                {usdAmount && Number.parseFloat(usdAmount) > 0 && currentPrice > 0 && (
+                  <div className="mt-3 p-3 bg-bg-tertiary rounded flex justify-between items-center border border-color-border">
+                    <span className="text-sm text-text-secondary">You will pay:</span>
+                    <span className="text-color-primary font-bold font-mono">{cryptoAmount} {selectedAsset}</span>
+                  </div>
+                )}
+                <p className="mt-3 text-xs text-text-tertiary">
+                  Enter the USD amount you plan to deposit.
                 </p>
               </div>
             </div>
@@ -138,6 +176,14 @@ export default function DepositPage() {
                   </div>
                 </div>
               </div>
+
+              <button
+                onClick={handleMadeDeposit}
+                disabled={!usdAmount || Number.parseFloat(usdAmount) <= 0 || submitLoading || loading}
+                className="mt-6 w-full bg-color-primary hover:bg-color-primary-hover text-black py-4 rounded-lg font-bold text-lg transition shadow-lg shadow-color-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitLoading ? 'Processing...' : 'I Have Made Deposit'}
+              </button>
             </div>
           </div>
 
@@ -150,7 +196,7 @@ export default function DepositPage() {
               {[
                 { step: 1, title: 'Select Currency', desc: 'Choose the cryptocurrency you want to deposit into your account.' },
                 { step: 2, title: 'Copy Address', desc: 'Copy the unique wallet address shown above or scan the QR code.' },
-                { step: 3, title: 'Send Assets', desc: 'Use your personal wallet or exchange to send the assets to your Legacy FX address.' },
+                { step: 3, title: 'Send Assets', desc: 'Use your personal wallet or exchange to send the assets to your Prime Meridian Markets address.' },
               ].map((s) => (
                 <div key={s.step} className="bg-bg-secondary border border-color-border p-6 rounded-lg">
                   <div className="w-8 h-8 rounded-full bg-color-primary text-bg-primary flex items-center justify-center font-bold mb-4">
@@ -163,6 +209,59 @@ export default function DepositPage() {
             </div>
           </div>
         </div>
+
+        {showProofModal && pendingDepositId && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+            <div className="bg-bg-secondary p-6 rounded-xl w-full max-w-md border border-color-border relative">
+              <button 
+                onClick={() => setShowProofModal(false)}
+                className="absolute top-4 right-4 text-text-secondary hover:text-text-primary"
+              >
+                <i className="pi pi-times"></i>
+              </button>
+              <h3 className="text-xl font-bold text-text-primary mb-2">Upload Proof of Payment</h3>
+              <p className="text-sm text-text-secondary mb-6">
+                Please upload a screenshot or receipt of your transaction to speed up the verification process.
+              </p>
+              
+              <div className="border border-dashed border-color-border rounded-xl p-4 bg-bg-tertiary">
+                <UploadDropzone
+                  endpoint="proofUploader"
+                  onUploadBegin={() => setUploadingProof(true)}
+                  onClientUploadComplete={async (res) => {
+                    setUploadingProof(false);
+                    if (res && res[0]) {
+                      try {
+                        await api.post(API_ENDPOINTS.DEPOSITS.CONFIRM(pendingDepositId), {
+                          proof_url: res[0].ufsUrl || res[0].url
+                        });
+                        toast.success('Proof uploaded successfully! Awaiting admin verification.');
+                        setShowProofModal(false);
+                        setUsdAmount('');
+                      } catch (e: any) {
+                        toast.error(e.message || 'Failed to confirm deposit.');
+                      }
+                    }
+                  }}
+                  onUploadError={(error: Error) => {
+                    setUploadingProof(false);
+                    toast.error(`Upload failed: ${error.message}`);
+                  }}
+                  appearance={{
+                    container: "p-4 w-full",
+                    label: "text-text-secondary hover:text-color-primary transition-colors",
+                    allowedContent: "text-text-tertiary",
+                    button: "bg-color-primary text-black font-bold mt-4"
+                  }}
+                />
+              </div>
+              
+              {uploadingProof && (
+                <p className="text-center text-color-primary mt-4 text-sm animate-pulse">Uploading...</p>
+              )}
+            </div>
+          </div>
+        )}
       </KYCGuard>
     </DashboardLayout>
   );

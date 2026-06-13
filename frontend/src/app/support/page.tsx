@@ -65,7 +65,7 @@ export default function SupportPage() {
            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               {[
                 { q: 'How long do withdrawals take?', a: 'Standard withdrawals are processed within 1-4 hours. Institutional cold storage takes 24h.' },
-                { q: 'Is Legacy FX regulated?', a: 'Legacy FX operates under global financial compliance standards across 150+ countries.' },
+                { q: 'Is Prime Meridian Markets regulated?', a: 'Prime Meridian Markets operates under global financial compliance standards across 150+ countries.' },
                 { q: 'What are the trading fees?', a: 'Fees vary by Tier level, ranging from 0.1% to 0% for our Elite members.' },
                 { q: 'Can I connect a hardware wallet?', a: 'Yes, Ledger and Trezor are supported via our Web3 integration module.' },
               ].map((faq, i) => (

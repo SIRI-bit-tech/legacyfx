@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Admin Portal — LegacyFX',
+  title: 'Admin Portal — Prime Meridian Markets',
   robots: 'noindex, nofollow',
 };
 

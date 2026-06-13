@@ -111,7 +111,7 @@ export default function AdminWithdrawalsPage() {
         <div className="bg-bg-secondary p-1 rounded-xl shadow-sm">
           <AdminTable
             columns={columns}
-            data={withdrawals}
+            data={withdrawals.filter(w => (!filters.asset || w.asset_symbol === filters.asset) && (!filters.status || w.status === filters.status))}
             loading={loading}
             emptyMessage="No withdrawals matching filters."
           />

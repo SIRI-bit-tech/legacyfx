@@ -31,8 +31,8 @@ export const TwoFAModal = ({
 
             <div className="space-y-6">
                <div className="bg-white p-4 rounded-2xl flex justify-center shadow-inner">
-                  {setupData?.qr_code_base64 && (
-                     <img src={setupData.qr_code_base64} alt="2FA QR Code" className="w-48 h-48" />
+                  {setupData?.qr_code && (
+                     <img src={setupData.qr_code} alt="2FA QR Code" className="w-48 h-48" />
                   )}
                </div>
 

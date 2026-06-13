@@ -1,18 +1,16 @@
 """
 Email sending utilities
 """
-import smtplib
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import asyncio
+import html
+import resend
 from app.config import get_settings
 
 settings = get_settings()
+resend.api_key = settings.RESEND_API_KEY
 
 logger = logging.getLogger(__name__)
-
-
-import html
 
 def create_email_template(title: str, code: str = None, message: str = None, validity_minutes: int = 15) -> str:
     """Create a professional HTML email template matching Binance style with XSS protection."""
@@ -64,7 +62,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         <tr>
                             <td align="center" style="background: linear-gradient(135deg, #D4AF37 0%, #aa8c2f 100%); padding: 30px 20px;">
                                 <div style="font-size: 28px; font-weight: bold; color: #ffffff; letter-spacing: 2px;">
-                                    ⬢ LEGACY FX
+                                    ⬢ PRIME MERIDIAN MARKETS
                                 </div>
                             </td>
                         </tr>
@@ -88,7 +86,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                                 <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
                                     <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
                                     <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
-                                        Do not share this code with anyone. Legacy FX staff will never ask for your verification code.
+                                        Do not share this code with anyone. Prime Meridian Markets staff will never ask for your verification code.
                                         <br><br>
                                         If you didn't request this code, you can safely ignore this email.
                                     </p>
@@ -108,7 +106,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                                     <a href="#" style="display: inline-block; margin: 0 10px; color: #D4AF37; text-decoration: none; font-size: 14px;">Instagram</a>
                                 </div>
                                 <p style="color: #555555; font-size: 11px; margin: 0;">
-                                    © 2026 Legacy FX. All rights reserved.
+                                    © 2026 Prime Meridian Markets. All rights reserved.
                                     <br>
                                     This is an automated message, please do not reply.
                                 </p>
@@ -119,7 +117,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         <tr>
                             <td style="padding: 20px 30px; background-color: #0f0f0f; border-top: 1px solid #333333;">
                                 <p style="color: #444444; font-size: 10px; margin: 0; line-height: 1.5;">
-                                    <strong>Disclaimer:</strong> Digital asset prices are subject to high market risk and price volatility. The value of your investment may go down or up. Legacy FX is not responsible for any losses incurred.
+                                    <strong>Disclaimer:</strong> Digital asset prices are subject to high market risk and price volatility. The value of your investment may go down or up. Prime Meridian Markets is not responsible for any losses incurred.
                                 </p>
                             </td>
                         </tr>
@@ -133,34 +131,24 @@ def create_email_template(title: str, code: str = None, message: str = None, val
 
 
 async def send_email(recipient: str, subject: str, html_body: str) -> bool:
-    """Send email via SMTP with header injection protection."""
+    """Send email via Resend."""
     try:
         # Sanitize headers to prevent injection
         safe_subject = subject.replace("\n", "").replace("\r", "")
         safe_recipient = recipient.replace("\n", "").replace("\r", "")
         safe_from = settings.EMAIL_FROM.replace("\n", "").replace("\r", "")
 
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = safe_subject
-        msg["From"] = safe_from
-        msg["To"] = safe_recipient
+        params = {
+            "from": safe_from,
+            "to": [safe_recipient],
+            "subject": safe_subject,
+            "html": html_body,
+        }
         
-        msg.attach(MIMEText(html_body, "html"))
-        
-        # Use SSL if port is 465, else use TLS
-        if settings.SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(safe_from, [safe_recipient], msg.as_string())
-        else:
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                if settings.SMTP_TLS:
-                    server.starttls()
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(safe_from, [safe_recipient], msg.as_string())
-        
-        logger.info(f"Email sent to {safe_recipient}")
+        # Use asyncio.to_thread to run sync API call in an async function
+        email_res = await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Email sent via Resend to {safe_recipient}: {email_res}")
         return True
     except Exception as e:
-        logger.error(f"Email sending error: {e}")
+        logger.error(f"Email sending error (Resend): {e}")
         return False

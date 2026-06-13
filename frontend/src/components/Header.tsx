@@ -1,42 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import TickerTape from '@/components/landing/TickerTape';
+import api from '@/lib/api';
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  link: string | null;
+  created_at: string;
+}
 
 export function Header() {
   const { user } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+    }
+  }, [user]);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get('/notifications');
+      setNotifications(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await api.put('/notifications/read-all');
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const unreadCount = (notifications || []).filter(n => !n.is_read).length;
 
   return (
     <header className="bg-bg-secondary border-b border-color-border px-4 lg:px-8 py-3 lg:py-5 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-      <div className="flex-1 flex items-center gap-2 lg:gap-4">
-        <div className="relative group flex-1 max-w-xs lg:max-w-md hidden sm:block">
-           <i className="pi pi-search absolute left-3 lg:left-4 top-2.5 lg:top-3 text-text-tertiary group-focus-within:text-color-primary transition-colors text-sm lg:text-base"></i>
-           <input
-             type="text"
-             placeholder="Search..."
-             className="w-full px-8 lg:px-5 py-2 lg:py-2.5 pl-9 lg:pl-12 bg-bg-tertiary border border-color-border rounded-xl text-text-secondary placeholder-text-tertiary focus:text-text-primary focus:border-color-primary focus:outline-none transition-all shadow-inner text-sm lg:text-base"
-           />
-        </div>
-        
-        {/* Mobile Search Button */}
-        <button className="sm:hidden w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-bg-tertiary border border-color-border flex items-center justify-center text-text-secondary hover:text-color-primary transition-all">
-          <i className="pi pi-search text-sm"></i>
-        </button>
+      <div className="flex-1 overflow-hidden h-8 lg:h-10 max-w-[50%] lg:max-w-2xl mr-4 rounded-xl border border-color-border bg-bg-tertiary">
+        <TickerTape className="w-full h-full flex items-center" />
       </div>
 
       <div className="flex items-center gap-8">
-        {/* Support Links */}
-        <div className="hidden md:flex items-center gap-4 lg:gap-6 text-xs font-black uppercase tracking-widest text-text-tertiary">
-           <a href="/support" className="hover:text-color-primary transition-colors flex items-center gap-1 lg:gap-2">
-              <i className="pi pi-question-circle text-xs lg:text-sm"></i>
-              <span className="hidden lg:inline">Support</span>
-           </a>
-           <a href="/signals" className="hover:text-color-primary transition-colors flex items-center gap-1 lg:gap-2">
-              <i className="pi pi-bolt text-xs lg:text-sm"></i>
-              <span className="hidden lg:inline">Live Feed</span>
-           </a>
-        </div>
 
         {/* Notifications */}
         <div className="relative">
@@ -45,33 +71,46 @@ export function Header() {
             className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-bg-tertiary border border-color-border flex items-center justify-center text-text-secondary hover:text-color-primary hover:border-color-primary transition-all group"
           >
             <i className="pi pi-bell group-hover:animate-swing text-sm lg:text-base"></i>
-            <span className="absolute top-1.5 lg:top-2 right-1.5 lg:right-2 w-1.5 lg:w-2 h-1.5 lg:h-2 bg-color-danger rounded-full border-2 border-bg-secondary"></span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 lg:top-2 right-1.5 lg:right-2 w-2 lg:w-2.5 h-2 lg:h-2.5 bg-color-danger rounded-full border-2 border-bg-secondary flex items-center justify-center">
+                <span className="sr-only">{unreadCount} unread</span>
+              </span>
+            )}
           </button>
           
           {showNotifications && (
             <div className="absolute right-0 lg:right-0 mt-2 lg:mt-4 w-80 lg:w-96 bg-bg-secondary border border-color-border rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200 max-h-[32rem]">
               <div className="p-5 border-b border-color-border flex justify-between items-center bg-bg-tertiary/20">
                 <h3 className="font-black text-xs uppercase tracking-widest text-text-primary">Market Alerts</h3>
-                <button className="text-[10px] text-color-primary font-bold hover:underline">Mark all read</button>
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} className="text-[10px] text-color-primary font-bold hover:underline">Mark all read</button>
+                )}
               </div>
               <div className="max-h-[32rem] overflow-y-auto">
-                <div className="p-5 hover:bg-bg-tertiary cursor-pointer transition-colors border-b border-color-border/30 group">
-                  <div className="flex justify-between items-start mb-1">
-                     <p className="text-text-primary font-bold text-sm group-hover:text-color-primary">Buy order filled</p>
-                     <span className="text-[10px] text-text-tertiary">2m ago</span>
+                {(notifications || []).length > 0 ? (
+                  (notifications || []).map(notification => (
+                    <div 
+                      key={notification.id} 
+                      onClick={() => !notification.is_read && markAsRead(notification.id)}
+                      className={`p-5 hover:bg-bg-tertiary cursor-pointer transition-colors border-b border-color-border/30 group ${!notification.is_read ? 'bg-bg-tertiary/10' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                         <div className="flex items-center gap-2">
+                           {!notification.is_read && <span className="w-1.5 h-1.5 rounded-full bg-color-primary"></span>}
+                           <p className="text-text-primary font-bold text-sm group-hover:text-color-primary">{notification.title}</p>
+                         </div>
+                         <span className="text-[10px] text-text-tertiary">
+                           {new Date(notification.created_at).toLocaleDateString()}
+                         </span>
+                      </div>
+                      <p className="text-text-secondary text-xs">{notification.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                     <p className="text-text-tertiary text-xs italic uppercase font-bold">No notifications</p>
                   </div>
-                  <p className="text-text-secondary text-xs">Exchanged 0.524 BTC at market price of $65,241.20</p>
-                </div>
-                <div className="p-5 hover:bg-bg-tertiary cursor-pointer transition-colors border-b border-color-border/30 group">
-                  <div className="flex justify-between items-start mb-1">
-                     <p className="text-text-primary font-bold text-sm group-hover:text-color-primary">Security Alert</p>
-                     <span className="text-[10px] text-text-tertiary">1h ago</span>
-                  </div>
-                  <p className="text-text-secondary text-xs">New device login detected from Singapore (IP: 103.xxx)</p>
-                </div>
-                <div className="p-8 text-center">
-                   <p className="text-text-tertiary text-xs italic uppercase font-bold">No older notifications</p>
-                </div>
+                )}
               </div>
             </div>
           )}

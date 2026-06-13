@@ -1,4 +1,4 @@
-# Legacy FX - Professional Cryptocurrency Trading & Brokerage Platform
+# Prime Meridian Markets - Professional Cryptocurrency Trading & Brokerage Platform
 
 A complete, production-ready cryptocurrency brokerage platform with institutional-grade trading tools, real-time market data, staking, mining, investment products, copy trading, trading signals, referral programs, and comprehensive user management.
 
@@ -416,7 +416,7 @@ npm run test
 
 ## 📄 License
 
-All rights reserved © 2024 Legacy FX
+All rights reserved © 2024 Prime Meridian Markets
 
 ---
 

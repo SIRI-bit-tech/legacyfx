@@ -55,6 +55,21 @@ export const ourFileRouter = {
     .onUploadComplete(async ({ metadata, file }) => {
       return { uploadedBy: metadata.role, url: file.ufsUrl || file.url, userId: metadata.id };
     }),
+
+  // 3. User Proof of Payment Uploader
+  proofUploader: f({ image: { maxFileSize: "8MB" } })
+    .middleware(async ({ req }) => {
+      const cookieHeader = req.headers.get("cookie") || "";
+      const token = cookieHeader.split("; ").find(row => row.startsWith("access_token="))?.split("=")[1];
+
+      if (!token) throw new Error("Unauthorized: User session required");
+
+      const userSession = await validateSession(token, true);
+      return { id: userSession.user_id, role: 'user' };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { uploadedBy: metadata.role, url: file.ufsUrl || file.url, userId: metadata.id };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

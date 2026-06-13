@@ -238,7 +238,7 @@ export default function CopyTradingPage() {
           <div>
             <h4 className="text-lg font-black text-white mb-2 uppercase tracking-widest">Global Risk Control Center</h4>
             <p className="text-xs text-[#848E9C] leading-relaxed max-w-4xl font-black uppercase tracking-tighter opacity-80">
-              Trading entails significant capital risk. Copy-trading allows you to mirror strategies, but past performance does not guarantee future results. Managed by Legacy FX Multi-Cluster Cloud System.
+              Trading entails significant capital risk. Copy-trading allows you to mirror strategies, but past performance does not guarantee future results. Managed by Prime Meridian Markets Multi-Cluster Cloud System.
             </p>
           </div>
         </div>

@@ -83,7 +83,7 @@ class RealEstateService:
         }
         
         # Pull from class-level mappings
-        # Map price filters: precedence to specific min/max over legacy priceRange
+        # Map price filters: precedence to specific min/max over older priceRange
         if filters.min_price or filters.max_price:
             body["list_price"] = {}
             if filters.min_price:

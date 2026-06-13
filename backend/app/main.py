@@ -40,7 +40,7 @@ from app.routes import (
     auth, users, trading, markets, deposits, funds,
     withdrawals, investments, mining, staking,
     signals, subscriptions, admin, copy_trading, ably, transactions,
-    real_estate, cold_storage, referrals
+    real_estate, cold_storage, referrals, notifications
 )
 from app.routes import wallets
 
@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Legacy FX Cryptocurrency Broker API",
+    title="Prime Meridian Markets Cryptocurrency Broker API",
     description="Professional cryptocurrency trading and investment platform",
     version="1.0.0",
     lifespan=lifespan
@@ -107,9 +107,10 @@ app.add_middleware(SlowAPIMiddleware)
 _allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://legacyfx.vercel.app",
+    "https://primemeridianmarkets.vercel.app",
     "https://legacy-fx.vercel.app",
-    "https://legacyfx.onrender.com",
+    "https://primemeridianmarkets.vercel.app",
+    "https://primemeridianmarkets.onrender.com",
 ]
 
 @app.middleware("http")
@@ -178,6 +179,7 @@ app.include_router(real_estate.router)
 app.include_router(cold_storage.router)
 app.include_router(referrals.router)
 app.include_router(wallets.router)
+app.include_router(notifications.router)
 
 from fastapi.staticfiles import StaticFiles
 import os
@@ -198,7 +200,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.get("/")
 async def root():
     return {
-        "message": "Legacy FX Cryptocurrency Broker API",
+        "message": "Prime Meridian Markets Cryptocurrency Broker API",
         "version": "1.0.0",
         "status": "operational"
     }

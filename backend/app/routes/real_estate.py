@@ -4,7 +4,7 @@ from typing import Optional, Annotated
 from app.database import get_db
 from app.routes.auth import get_current_user
 from app.models.user import User
-from app.utils.tier_auth import require_legacy_master
+from app.utils.tier_auth import require_prime_master
 from app.schemas.real_estate import PropertyFilters, ListingsResponse, UnifiedProperty, InvestRequest, InvestmentResponse, PortfolioResponse, PaginatedTransactions
 from app.services.real_estate_service import RealEstateService, InvestmentNotFoundError, InsufficientFundsError, PropertyNotFoundError, UserNotFoundError
 from app.services.ably_service import ably_service
@@ -43,7 +43,7 @@ async def get_property_detail(property_id: str, db: Annotated[AsyncSession, Depe
 
 @router.get("/portfolio", response_model=PortfolioResponse)
 async def get_portfolio(
-    current_user: Annotated[User, Depends(require_legacy_master)],
+    current_user: Annotated[User, Depends(require_prime_master)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     return await RealEstateService.get_portfolio(str(current_user.id), db)
@@ -51,7 +51,7 @@ async def get_portfolio(
 @router.post("/invest", response_model=InvestmentResponse, responses={400: {"description": "Insufficient funds or invalid property"}, 500: {"description": "Internal server error"}})
 async def invest_in_property(
     request: InvestRequest,
-    current_user: Annotated[User, Depends(require_legacy_master)],
+    current_user: Annotated[User, Depends(require_prime_master)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     try:
@@ -66,7 +66,7 @@ async def invest_in_property(
 @router.post("/exit", responses={400: {"description": "Missing investment_id"}, 404: {"description": "Investment not found"}})
 async def exit_investment(
     body: dict,
-    current_user: Annotated[User, Depends(require_legacy_master)],
+    current_user: Annotated[User, Depends(require_prime_master)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     investment_id = body.get("investment_id")
@@ -84,7 +84,7 @@ async def exit_investment(
 
 @router.get("/transactions", response_model=PaginatedTransactions)
 async def get_transactions(
-    current_user: Annotated[User, Depends(require_legacy_master)],
+    current_user: Annotated[User, Depends(require_prime_master)],
     db: Annotated[AsyncSession, Depends(get_db)],
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 10,

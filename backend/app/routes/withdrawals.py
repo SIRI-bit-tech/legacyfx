@@ -23,7 +23,7 @@ class WithdrawalRequest(BaseModel):
     amount: float
     destination_address: str
     blockchain_network: Optional[str] = "ERC20"
-    two_fa_code: Optional[str] = None
+    two_fa_code: str
 
 class WithdrawalResponse(BaseModel):
     id: str
@@ -43,6 +43,23 @@ async def request_withdrawal(
     db: AsyncSession = Depends(get_db)
 ):
     """Request a withdrawal of assets."""
+    
+    if not current_user.two_factor_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="2FA is not enabled for this account. Please enable 2FA to perform withdrawals."
+        )
+        
+    if not withdrawal_data.two_fa_code:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="2FA code is required for withdrawals."
+        )
+
+    from app.utils.auth import verify_totp
+    if not verify_totp(current_user.two_factor_secret, withdrawal_data.two_fa_code):
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+            
     usd_rate = 50000.0 if withdrawal_data.asset_symbol.upper() == "BTC" else 1.0
     usd_value = withdrawal_data.amount * usd_rate
     

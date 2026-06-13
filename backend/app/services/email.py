@@ -12,7 +12,7 @@ class EmailService:
     async def send_verification_email(email: str, token: str) -> bool:
         """Send email verification link"""
         try:
-            subject = "Verify your Legacy FX email"
+            subject = "Verify your Prime Meridian Markets email"
             verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
             
             html_body = f"""
@@ -35,7 +35,7 @@ class EmailService:
     async def send_password_reset_email(email: str, token: str) -> bool:
         """Send password reset email"""
         try:
-            subject = "Reset your Legacy FX password"
+            subject = "Reset your Prime Meridian Markets password"
             reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
             
             html_body = f"""

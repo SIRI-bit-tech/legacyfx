@@ -25,7 +25,6 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None
     user_id: str
     expires_in: int = 900
 

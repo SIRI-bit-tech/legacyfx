@@ -16,7 +16,7 @@ cloudinary.config(
 )
 
 
-async def upload_file(file_bytes: bytes, filename: str, folder: str = "legacy-fx") -> str:
+async def upload_file(file_bytes: bytes, filename: str, folder: str = "primemeridianmarkets") -> str:
     """Upload file to Cloudinary"""
     try:
         result = cloudinary.uploader.upload(

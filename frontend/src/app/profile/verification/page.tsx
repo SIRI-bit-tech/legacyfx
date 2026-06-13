@@ -204,7 +204,7 @@ export default function VerificationPage() {
                   </p>
                   <UploadButton
                     endpoint="kycUploader"
-                    onClientUploadComplete={(res) => handleUploadComplete('ID_CARD', res[0].url)}
+                    onClientUploadComplete={(res) => handleUploadComplete('ID_CARD', res[0].ufsUrl)}
                     onUploadError={(error: Error) => {
                       toast.error(`Error: ${error.message}`);
                     }}
@@ -227,7 +227,7 @@ export default function VerificationPage() {
                   </p>
                   <UploadButton
                     endpoint="kycUploader"
-                    onClientUploadComplete={(res) => handleUploadComplete('BUSINESS_LICENSE', res[0].url)}
+                    onClientUploadComplete={(res) => handleUploadComplete('BUSINESS_LICENSE', res[0].ufsUrl)}
                     onUploadError={(error: Error) => {
                       toast.error(`Error: ${error.message}`);
                     }}
@@ -250,7 +250,7 @@ export default function VerificationPage() {
                   </p>
                   <UploadButton
                     endpoint="kycUploader"
-                    onClientUploadComplete={(res) => handleUploadComplete('ARTICLES_OF_ASSOCIATION', res[0].url)}
+                    onClientUploadComplete={(res) => handleUploadComplete('ARTICLES_OF_ASSOCIATION', res[0].ufsUrl)}
                     onUploadError={(error: Error) => {
                       toast.error(`Error: ${error.message}`);
                     }}
@@ -273,7 +273,7 @@ export default function VerificationPage() {
                   </p>
                   <UploadButton
                     endpoint="kycUploader"
-                    onClientUploadComplete={(res) => handleUploadComplete('JOINT_OWNERSHIP_AGREEMENT', res[0].url)}
+                    onClientUploadComplete={(res) => handleUploadComplete('JOINT_OWNERSHIP_AGREEMENT', res[0].ufsUrl)}
                     onUploadError={(error: Error) => {
                       toast.error(`Error: ${error.message}`);
                     }}
@@ -295,7 +295,7 @@ export default function VerificationPage() {
                 </p>
                 <UploadButton
                   endpoint="kycUploader"
-                  onClientUploadComplete={(res) => handleUploadComplete('PROOF_OF_ADDRESS', res[0].url)}
+                  onClientUploadComplete={(res) => handleUploadComplete('PROOF_OF_ADDRESS', res[0].ufsUrl)}
                   onUploadError={(error: Error) => {
                     toast.error(`Error: ${error.message}`);
                   }}

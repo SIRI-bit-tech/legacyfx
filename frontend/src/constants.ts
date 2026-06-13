@@ -114,6 +114,7 @@ export const API_ENDPOINTS = {
     LEADERBOARD: "/referrals/leaderboard",
   },
   DEPOSITS: {
+    ADDRESS: "/deposits/address",
     REQUEST: "/deposits/request",
     HISTORY: "/deposits/history",
     CONFIRM: (id: string) => `/deposits/${id}/confirm`,

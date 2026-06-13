@@ -68,10 +68,10 @@ export default function SubscribePage() {
       icon: 'pi-star-fill'
     },
     { 
-      id: 'plan_legacy',
-      name: 'Legacy Master', 
+      id: 'plan_prime',
+      name: 'Prime Master', 
       price: '$1,500', 
-      tier: 'LEGACY_MASTER',
+      tier: 'PRIME_MASTER',
       features: ['Unlock ALL Features', 'Copy Trading', 'Premium Signals', 'Real Estate Access', 'VIP Concierge'], 
       recommended: false,
       icon: 'pi-crown'

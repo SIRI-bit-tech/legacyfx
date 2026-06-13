@@ -55,7 +55,7 @@ export default function AdminRegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-bg-elevated px-4 py-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <span className="text-4xl font-black text-color-primary tracking-tight">LegacyFX</span>
+          <span className="text-4xl font-black text-color-primary tracking-tight">Prime Meridian Markets</span>
           <p className="text-text-tertiary text-xs uppercase tracking-widest mt-1 font-bold">Admin Portal</p>
         </div>
 

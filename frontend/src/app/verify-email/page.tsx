@@ -8,20 +8,13 @@ import { API_ENDPOINTS } from '@/constants';
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('');
+  const email = searchParams.get('email') || '';
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
-
-  useEffect(() => {
-    const emailParam = searchParams.get('email');
-    if (emailParam) {
-      setEmail(emailParam);
-    }
-  }, [searchParams]);
 
   const handleInput = (index: number, value: string) => {
     if (value.length > 1) value = value[0];
@@ -106,7 +99,7 @@ function VerifyEmailContent() {
     return (
       <div className="bg-bg-secondary border border-color-success rounded-lg p-8 text-center max-w-md w-full">
         <h2 className="text-color-success text-2xl font-bold mb-2">Verified!</h2>
-        <p className="text-text-secondary mb-4">Your email has been confirmed. Welcome to Legacy FX.</p>
+        <p className="text-text-secondary mb-4">Your email has been confirmed. Welcome to Prime Meridian Markets.</p>
         <p className="text-text-tertiary text-sm">Redirecting to dashboard...</p>
       </div>
     );
@@ -156,6 +149,7 @@ function VerifyEmailContent() {
           <p className="text-text-secondary text-sm">
             Didn't receive a code?{' '}
             <button 
+              type="button"
               onClick={handleResend}
               disabled={resendLoading}
               className="text-color-primary hover:text-color-primary-hover font-semibold disabled:opacity-50 disabled:cursor-not-allowed"

@@ -24,13 +24,15 @@ from app.utils.market import get_live_price
 from app.schemas.admin import AdminRegisterRequest, AdminLoginRequest, AdminAuthResponse
 from app.services.admin_auth_service import register_admin_account, login_admin_account
 from pydantic import BaseModel
+from app.models.notification import Notification
+from app.utils.email import send_email, create_email_template
 
 # Tier ranking for preventing downgrades
 TIER_RANKING = {
     "BASIC": 1,
     "PRO": 2, 
     "ELITE": 3,
-    "LEGACY_MASTER": 4
+    "PRIME_MASTER": 4
 }
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -171,6 +173,7 @@ async def verify_user_kyc(
 @router.post("/deposits/{deposit_id}/approve")
 async def approve_deposit(
     deposit_id: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db), 
     _ = Depends(require_admin)
 ):
@@ -206,6 +209,80 @@ async def approve_deposit(
     
     user.account_balance += usd_val
     user.trading_balance += usd_val
+    
+    # Record or Update Transaction
+    tx_stmt = select(Transaction).where(
+        Transaction.reference_id == deposit.id,
+        Transaction.type == TransactionType.DEPOSIT
+    )
+    tx_result = await db.execute(tx_stmt)
+    txn = tx_result.scalar_one_or_none()
+    
+    if txn:
+        txn.status = "COMPLETED"
+        txn.usd_amount = usd_val
+    else:
+        txn = Transaction(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            type=TransactionType.DEPOSIT,
+            asset_symbol=deposit.asset_symbol,
+            amount=deposit.amount,
+            usd_amount=usd_val,
+            description=f"Deposit {deposit.asset_symbol}",
+            reference_id=deposit.id,
+            status="COMPLETED"
+        )
+        db.add(txn)
+    
+    # Process referral commissions
+    try:
+        from app.services.referral_service import ReferralService
+        from app.utils.ably import get_ably_client
+        ably_client = get_ably_client()
+        
+        # Activate referral on first deposit
+        await ReferralService.activate_referral(
+            referred_user_id=user.id,
+            db=db,
+            ably_client=ably_client
+        )
+        
+        # Process deposit commission
+        await ReferralService.process_deposit_commission(
+            referred_user_id=user.id,
+            deposit_amount=usd_val,
+            db=db,
+            ably_client=ably_client
+        )
+    except Exception:
+        # Log but don't fail deposit if referral processing fails
+        logger.exception("Failed to process referral commission")
+        
+    # Create notification for the user
+    notification_id = str(uuid.uuid4())
+    notification = Notification(
+        id=notification_id,
+        user_id=user.id,
+        type="DEPOSIT",
+        title="Deposit Approved",
+        message=f"Your deposit with the amount {deposit.amount} {deposit.asset_symbol} has completed and balance updated.",
+        is_read=False
+    )
+    db.add(notification)
+    
+    # Send email to the user
+    email_content = create_email_template(
+        title="Deposit Approved",
+        message="Balance or deposit has been received and balance updated. You can now trade and enjoy broker services.",
+        code=None
+    )
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        "Deposit Approved - Prime Meridian Markets",
+        email_content
+    )
     
     await db.commit()
     return {"message": "Deposit approved and user credited"}
@@ -401,8 +478,8 @@ async def approve_user_subscription(
         )
     
     # Update user tier using strict mapping
-    if plan_tier == "LEGACY_MASTER":
-        user.tier = UserTier.LEGACY_MASTER
+    if plan_tier == "PRIME_MASTER":
+        user.tier = UserTier.PRIME_MASTER
     elif plan_tier == "ELITE":
         user.tier = UserTier.ELITE
     elif plan_tier == "PRO":
@@ -439,7 +516,7 @@ async def approve_user_subscription(
     background_tasks.add_task(
         send_email,
         user.email,
-        f"Your {plan.name} Plan is Now Active - Legacy FX",
+        f"Your {plan.name} Plan is Now Active - Prime Meridian Markets",
         email_content
     )
     
@@ -654,6 +731,7 @@ async def list_all_deposits(db: AsyncSession = Depends(get_db), _ = Depends(requ
             "status": d.status,
             "blockchain_network": d.blockchain_network,
             "transaction_hash": d.transaction_hash,
+            "proof_url": d.proof_url,
             "created_at": d.created_at
         } for d, email in rows
     ]

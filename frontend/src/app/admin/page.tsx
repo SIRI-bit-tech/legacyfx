@@ -8,6 +8,7 @@ import { AdminTable, TableColumn } from '@/components/admin/AdminTable';
 import { AdminBadge } from '@/components/admin/AdminBadge';
 import { useAdminStats } from '@/hooks/admin/useAdminStats';
 import Link from 'next/link';
+import { Users, DollarSign, Clock, FileKey } from 'lucide-react';
 
 export default function AdminOverviewPage() {
   const { stats, recentUsers, pendingWithdrawals, loading } = useAdminStats();
@@ -39,25 +40,25 @@ export default function AdminOverviewPage() {
             label="Total Users"
             value={stats?.total_users ?? '0'}
             loading={loading}
-            icon="👤"
+            icon={<Users className="w-5 h-5 text-color-primary" />}
           />
           <AdminCard
             label="Total Deposited"
             value={`$${(stats?.total_deposited ?? 0).toLocaleString()}`}
             loading={loading}
-            icon="💰"
+            icon={<DollarSign className="w-5 h-5 text-color-success" />}
           />
           <AdminCard
             label="Pending Withdrawals"
             value={stats?.pending_withdrawals ?? '0'}
             loading={loading}
-            icon="⏳"
+            icon={<Clock className="w-5 h-5 text-color-warning" />}
           />
           <AdminCard
             label="Pending KYC"
             value={stats?.pending_kyc ?? '0'}
             loading={loading}
-            icon="🆔"
+            icon={<FileKey className="w-5 h-5 text-color-info" />}
             href="/admin/kyc"
           />
         </div>

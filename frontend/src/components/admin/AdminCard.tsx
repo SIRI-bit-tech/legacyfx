@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import React from 'react';
 
 export function AdminCard({
   label,
@@ -12,7 +13,7 @@ export function AdminCard({
   value: string | number;
   sub?: string;
   loading?: boolean;
-  icon?: string;
+  icon?: React.ReactNode;
   href?: string;
 }>) {
   const content = (

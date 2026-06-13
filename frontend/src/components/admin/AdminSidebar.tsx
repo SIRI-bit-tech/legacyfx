@@ -32,7 +32,7 @@ export function AdminSidebar({ open, onClose }: Readonly<{ open: boolean; onClos
     <div className="flex flex-col h-full">
       {/* Branding */}
       <div className="px-5 py-5 border-b border-color-border shrink-0">
-        <span className="text-xl font-black text-color-primary tracking-tight">LegacyFX</span>
+        <span className="text-xl font-black text-color-primary tracking-tight">Prime Meridian Markets</span>
         <p className="text-text-tertiary text-[10px] uppercase tracking-widest font-bold mt-0.5">Admin Portal</p>
       </div>
 

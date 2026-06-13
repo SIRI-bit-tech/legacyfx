@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 import { KYCGuard } from '@/components/user/KYCGuard';
+import { useAuthContext } from '@/context/AuthContext';
 
 export default function WithdrawPage() {
   const [selectedAsset, setSelectedAsset] = useState('BTC');
@@ -12,10 +13,15 @@ export default function WithdrawPage() {
   const [address, setAddress] = useState('');
   const [assets, setAssets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuthContext();
 
   useEffect(() => {
-    loadHoldings();
-  }, []);
+    if (user?.two_fa_enabled) {
+      loadHoldings();
+    } else {
+      setLoading(false);
+    }
+  }, [user?.two_fa_enabled]);
 
   const loadHoldings = async () => {
     try {
@@ -61,6 +67,28 @@ export default function WithdrawPage() {
       return (
         <div className="flex items-center justify-center min-h-[60vh]">
           <i className="pi pi-spin pi-spinner text-4xl text-color-primary"></i>
+        </div>
+      );
+    }
+
+    if (!user?.two_fa_enabled) {
+      return (
+        <div className="max-w-2xl mx-auto p-8 text-center mt-12">
+          <div className="bg-bg-secondary border border-color-border p-8 rounded-3xl">
+            <div className="w-16 h-16 rounded-full bg-color-warning/20 flex items-center justify-center mx-auto mb-6">
+              <i className="pi pi-shield text-2xl text-color-warning"></i>
+            </div>
+            <h2 className="text-xl font-bold text-text-primary mb-3">Two-Factor Authentication Required</h2>
+            <p className="text-text-tertiary mb-6">
+              You must enable 2FA on your account before you can request withdrawals. This is required for your security.
+            </p>
+            <button
+              onClick={() => globalThis.location.href = '/profile/security'}
+              className="bg-color-primary hover:bg-color-primary-hover text-black px-6 py-3 rounded-xl font-bold text-sm transition"
+            >
+              Enable 2FA
+            </button>
+          </div>
         </div>
       );
     }

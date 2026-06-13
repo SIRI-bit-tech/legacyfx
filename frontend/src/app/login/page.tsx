@@ -39,7 +39,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-bg-primary">
       <div className="w-full max-w-md">
         <div className="bg-bg-secondary border border-color-border rounded-lg p-8">
-          <h1 className="font-display text-3xl font-bold text-text-primary mb-2">Legacy FX</h1>
+          <h1 className="font-display text-3xl font-bold text-text-primary mb-2">Prime Meridian Markets</h1>
           <p className="text-text-secondary mb-8">Professional Crypto Trading Platform</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -58,9 +58,14 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-2">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-text-secondary">
+                  Password
+                </label>
+                <Link href="/forgot-password" className="text-sm text-color-primary hover:text-color-primary-hover transition-colors">
+                  Forgot Password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}

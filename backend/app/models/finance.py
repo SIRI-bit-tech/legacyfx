@@ -51,6 +51,7 @@ class Deposit(Base):
     
     status = Column(Enum(DepositStatus), default=DepositStatus.PENDING)
     confirmed_at = Column(DateTime, nullable=True)
+    proof_url = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Withdrawal(Base):
@@ -116,7 +117,7 @@ class SubscriptionPlan(Base):
     
     id = Column(String(36), primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    tier = Column(Enum(UserTier), nullable=False) # BASIC, PRO, ELITE, LEGACY_MASTER
+    tier = Column(Enum(UserTier), nullable=False) # BASIC, PRO, ELITE, PRIME_MASTER
     price = Column(Float, nullable=False) # In USD
     features = Column(Text, nullable=True) # JSON features list
     is_active = Column(Boolean, default=True)

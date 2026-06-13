@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-export default function TickerTape() {
+export default function TickerTape({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function TickerTape() {
   }, []);
 
   return (
-    <div className="w-full bg-[#0B0E11] border-b border-[#2B3139] mt-16 overflow-hidden h-[40px] flex items-center relative z-50">
+    <div className={className !== undefined ? className : "w-full bg-[#0B0E11] border-b border-[#2B3139] mt-16 overflow-hidden h-[40px] flex items-center relative z-50"}>
       <div ref={containerRef} className="tradingview-widget-container w-full min-w-full">
         <div className="tradingview-widget-container__widget"></div>
       </div>

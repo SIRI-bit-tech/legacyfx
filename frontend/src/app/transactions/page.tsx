@@ -16,7 +16,7 @@ export default function TransactionsPage() {
   const loadTransactions = async () => {
     try {
       const res = await api.get(API_ENDPOINTS.ACTIVITY.LIST);
-      setTransactions(res || []);
+      setTransactions(res?.items || []);
     } catch (e) {
       console.error(e);
     } finally {

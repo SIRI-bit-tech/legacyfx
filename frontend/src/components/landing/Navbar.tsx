@@ -9,7 +9,7 @@ export default function Navbar() {
         <div className="flex items-center gap-4 md:gap-8">
           <Link href="/" className="flex items-center gap-2 group shrink-0">
             <span className="text-xl md:text-2xl font-display font-bold text-color-primary group-hover:text-color-primary-hover transition-colors">
-              Legacy FX
+              Prime Meridian Markets
             </span>
           </Link>
 

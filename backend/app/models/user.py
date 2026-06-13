@@ -8,7 +8,7 @@ class UserTier(str, enum.Enum):
     BASIC = "BASIC"
     PRO = "PRO"
     ELITE = "ELITE"
-    LEGACY_MASTER = "LEGACY_MASTER"
+    PRIME_MASTER = "PRIME_MASTER"
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -55,6 +55,12 @@ class User(Base):
     status = Column(Enum(UserStatus), default=UserStatus.ACTIVE)
     kyc_status = Column(Enum(KYCStatus), default=KYCStatus.UNVERIFIED)
     kyc_rejection_reason = Column(Text, nullable=True)
+    
+    # Brute-force & Password Reset
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    password_reset_token = Column(String(255), nullable=True)
+    password_reset_expires_at = Column(DateTime, nullable=True)
     
     # Financials
     # account_balance is total across all accounts in USD

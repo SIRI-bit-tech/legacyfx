@@ -55,7 +55,7 @@ class RealEstateInvestment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Legacy relationships - kept for backward compatibility if needed by existing queries
+    # Older relationships - kept for backward compatibility if needed by existing queries
     user = relationship("User", back_populates="real_estate_investments")
 
 class RealEstateTransaction(Base):

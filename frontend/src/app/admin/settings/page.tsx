@@ -9,8 +9,8 @@ import { ImageUpload } from '@/components/admin/ImageUpload';
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState({
-    siteName: 'LegacyFX',
-    supportEmail: 'support@legacyfx.com',
+    siteName: 'Prime Meridian Markets',
+    supportEmail: 'support@primemeridianmarkets.com',
     minWithdrawal: 10,
     maintenanceMode: false,
     miningWallet: '',

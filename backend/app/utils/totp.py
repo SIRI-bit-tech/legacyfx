@@ -12,7 +12,7 @@ def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
 
-def get_totp_uri(secret: str, email: str, issuer: str = "Legacy FX") -> str:
+def get_totp_uri(secret: str, email: str, issuer: str = "Prime Meridian Markets") -> str:
     """Get provisioning URI for TOTP"""
     totp = pyotp.TOTP(secret)
     return totp.provisioning_uri(

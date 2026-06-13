@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 import uuid
 import logging
 
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.models.user import User, UserStatus
 from app.schemas.auth import (
@@ -74,8 +76,13 @@ async def register(
         referral_code=new_referral_code
     )
     
-    db.add(new_user)
-    await db.commit()
+    try:
+        db.add(new_user)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        logger.info(f"Concurrent registration attempt for existing email: {register_data.email}")
+        return success_response
     
     # Process referral signup if referral code provided
     if register_data.referral_code:
@@ -96,14 +103,14 @@ async def register(
     email_content = create_email_template(
         title="Email Verification",
         code=verification_code,
-        message="Welcome to Legacy FX! Please use the code above to verify your email address and activate your account.",
+        message="Welcome to Prime Meridian Markets! Please use the code above to verify your email address and activate your account.",
         validity_minutes=15
     )
     
     background_tasks.add_task(
         send_email,
         register_data.email,
-        "Verify Your Legacy FX Account",
+        "Verify Your Prime Meridian Markets Account",
         email_content
     )
     
@@ -151,6 +158,7 @@ async def verify_email(
 @limiter.limit("5/minute")
 async def login(
     request: Request,
+    response: Response,
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -158,7 +166,18 @@ async def login(
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
+    if user and user.locked_until and user.locked_until > datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is temporarily locked due to too many failed login attempts. Please try again later."
+        )
+
     if not user or not verify_password(login_data.password, user.password_hash):
+        if user:
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+            await db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -170,6 +189,8 @@ async def login(
             detail="Account is suspended"
         )
     
+    user.failed_login_attempts = 0
+    user.locked_until = None
     user.last_login = datetime.utcnow()
     await record_login(user.id, request, db)
     await db.commit()
@@ -177,15 +198,79 @@ async def login(
     access_token = create_access_token(data={"sub": user.id})
     refresh_token = create_refresh_token(data={"sub": user.id})
     
+    is_production = settings.ENVIRONMENT == "production"
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=is_production,
+        samesite="lax",
+        max_age=7 * 24 * 60 * 60
+    )
+    
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         user_id=user.id,
-        expires_in=15 * 60 # 15 minutes in seconds
+        expires_in=15 * 60
+    )
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token_endpoint(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db)
+):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+        
+    payload = verify_token(refresh_token)
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+    jti = payload.get("jti")
+    user_id = payload.get("sub")
+    
+    from app.models.security import TokenBlocklist
+    stmt = select(TokenBlocklist).where(TokenBlocklist.jti == jti)
+    result = await db.execute(stmt)
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=401, detail="Refresh token revoked")
+        
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user or user.status == "SUSPENDED":
+        raise HTTPException(status_code=401, detail="User inactive or suspended")
+        
+    db.add(TokenBlocklist(id=str(uuid.uuid4()), jti=jti))
+    
+    new_access_token = create_access_token(data={"sub": user.id})
+    new_refresh_token = create_refresh_token(data={"sub": user.id})
+    
+    await db.commit()
+    
+    is_production = settings.ENVIRONMENT == "production"
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=is_production,
+        samesite="lax",
+        max_age=7 * 24 * 60 * 60
+    )
+    
+    return TokenResponse(
+        access_token=new_access_token,
+        user_id=user.id,
+        expires_in=15 * 60
     )
 
 @router.post("/logout")
 async def logout(
+    request: Request,
+    response: Response,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
@@ -193,7 +278,6 @@ async def logout(
     if payload and payload.get("jti"):
         from app.models.security import TokenBlocklist
         
-        # Check if already blocklisted
         jti = payload.get("jti")
         stmt = select(TokenBlocklist).where(TokenBlocklist.jti == jti)
         result = await db.execute(stmt)
@@ -203,7 +287,29 @@ async def logout(
                 jti=jti
             )
             db.add(blocklist_entry)
-            await db.commit()
+            
+    # Also blocklist refresh token from cookie if exists
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token:
+        refresh_payload = verify_token(refresh_token)
+        if refresh_payload and refresh_payload.get("jti"):
+            refresh_jti = refresh_payload.get("jti")
+            from app.models.security import TokenBlocklist
+            stmt = select(TokenBlocklist).where(TokenBlocklist.jti == refresh_jti)
+            result = await db.execute(stmt)
+            if not result.scalar_one_or_none():
+                db.add(TokenBlocklist(id=str(uuid.uuid4()), jti=refresh_jti))
+                
+    await db.commit()
+    
+    # Delete the cookie
+    is_production = settings.ENVIRONMENT == "production"
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=is_production,
+        samesite="lax"
+    )
             
     return {"message": "Logged out successfully"}
 
@@ -273,13 +379,13 @@ async def resend_verification_email(
     email_content = create_email_template(
         title="Email Verification",
         code=verification_code,
-        message="A new verification code has been requested for your Legacy FX account. Please use the code above to verify your email.",
+        message="A new verification code has been requested for your Prime Meridian Markets account. Please use the code above to verify your email.",
         validity_minutes=15
     )
     background_tasks.add_task(
         send_email, 
         resend_data.email, 
-        "Verify your Legacy FX account", 
+        "Verify your Prime Meridian Markets account", 
         email_content
     )
     
@@ -289,9 +395,86 @@ async def resend_verification_email(
 @limiter.limit("3/minute")
 async def forgot_password(
     request: Request,
-    reset_data: PasswordResetRequest
+    reset_data: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
 ):
+    stmt = select(User).where(User.email == reset_data.email)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if user:
+        import secrets
+        import hashlib
+        
+        raw_token = secrets.token_urlsafe(32)
+        hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
+        
+        user.password_reset_token = hashed_token
+        user.password_reset_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        await db.commit()
+        
+        # Determine the base URL dynamically based on frontend setup or settings
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        reset_link = f"{frontend_url}/reset-password?token={raw_token}"
+        email_content = create_email_template(
+            title="Password Reset Request",
+            code="",
+            message=f"You requested a password reset. Please click the link below to set a new password. This link will expire in 15 minutes.<br/><br/><a href='{reset_link}' style='display:inline-block;padding:10px 20px;background:#D3A376;color:#fff;text-decoration:none;border-radius:5px;'>Reset Password</a>",
+            validity_minutes=15
+        )
+        
+        background_tasks.add_task(
+            send_email,
+            user.email,
+            "Reset your Prime Meridian Markets password",
+            email_content
+        )
+        
     return {"message": "If an account exists with this email, a reset link has been sent"}
+
+from app.schemas.auth import PasswordResetConfirm
+@router.post("/reset-password")
+@limiter.limit("3/minute")
+async def reset_password(
+    request: Request,
+    reset_data: PasswordResetConfirm,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    import hashlib
+    hashed_token = hashlib.sha256(reset_data.token.encode()).hexdigest()
+    stmt = select(User).where(User.password_reset_token == hashed_token)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    
+    if not user or not user.password_reset_expires_at or user.password_reset_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        
+    user.password_hash = hash_password(reset_data.new_password)
+    user.password_reset_token = None
+    user.password_reset_expires_at = None
+    
+    # Unlock account if it was locked
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    
+    await db.commit()
+    
+    email_content = create_email_template(
+        title="Password Changed",
+        code="",
+        message="Your Prime Meridian Markets password has been successfully changed. If you did not make this change, please contact support immediately.",
+        validity_minutes=0
+    )
+    background_tasks.add_task(
+        send_email,
+        user.email,
+        "Your Prime Meridian Markets password was changed",
+        email_content
+    )
+    
+    return {"message": "Password has been successfully reset"}
 
 @router.post("/change-password")
 async def change_password(
@@ -322,7 +505,7 @@ async def setup_2fa(
     
     otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
         name=current_user.email, 
-        issuer_name="Legacy FX"
+        issuer_name="Prime Meridian Markets"
     )
     
     img = qrcode.make(otp_uri)

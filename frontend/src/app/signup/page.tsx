@@ -94,7 +94,7 @@ function SignupForm() {
         <div className="bg-bg-secondary border border-color-border rounded-lg p-8">
           <h1 className="font-display text-3xl font-bold text-text-primary mb-2">Create Account</h1>
           <p className="text-text-secondary mb-8">
-            Join Legacy FX today
+            Join Prime Meridian Markets today
             {referralCode && (
               <span className="block text-color-primary text-sm mt-1">
                 Referred by: {referralCode}

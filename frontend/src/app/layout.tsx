@@ -27,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 const getDeploymentUrl = () => {
   const url = process.env.NEXT_PUBLIC_DEPLOYMENT_URL ||
     process.env.VERCEL_URL ||
-    (process.env.NODE_ENV === 'production' ? 'https://legacyfx.com' : 'http://localhost:3000');
+    (process.env.NODE_ENV === 'production' ? 'https://primemeridianmarkets.com' : 'http://localhost:3000');
 
   return url.startsWith('http') ? url : `https://${url}`;
 };
@@ -36,15 +36,15 @@ const deploymentUrl = getDeploymentUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(deploymentUrl),
-  title: 'Legacy FX | Institutional Digital Asset Exchange & Matching Engine',
-  description: 'Trade cryptocurrencies with institutional-grade tools on Legacy FX. Experience under 1.2ms latency, deep liquidity, and Swiss-grade custodial security. Access 350+ assets including Bitcoin, Ethereum, and Equity Indices.',
-  keywords: 'crypto exchange, digital assets, bitcoin trading, institutional crypto, cryptocurrency matching engine, ethereum, high frequency trading, secure crypto storage, Legacy FX, blockchain finance',
-  authors: [{ name: 'Legacy FX Global' }],
+  title: 'Prime Meridian Markets | Institutional Digital Asset Exchange & Matching Engine',
+  description: 'Trade cryptocurrencies with institutional-grade tools on Prime Meridian Markets. Experience under 1.2ms latency, deep liquidity, and Swiss-grade custodial security. Access 350+ assets including Bitcoin, Ethereum, and Equity Indices.',
+  keywords: 'crypto exchange, buy bitcoin, institutional digital assets, cryptocurrency trading, prime meridian markets, low latency matching engine, crypto investing, defi staking, real estate crypto, copy trading, cold storage security, ethereum trading, crypto brokerage',
+  authors: [{ name: 'Prime Meridian Markets Global' }],
   openGraph: {
-    title: 'Legacy FX | Institutional Digital Asset Exchange',
+    title: 'Prime Meridian Markets | Institutional Digital Asset Exchange',
     description: 'The gold standard of digital asset trading. High-performance matching engine and ultra-secure cold storage.',
     url: deploymentUrl,
-    siteName: 'Legacy FX',
+    siteName: 'Prime Meridian Markets',
     images: [
       {
         url: '/og-image.png', // Fallback to a placeholder or user can add this later
@@ -57,9 +57,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Legacy FX | Institutional Digital Asset Exchange',
+    title: 'Prime Meridian Markets | Institutional Digital Asset Exchange',
     description: 'Experience unrivaled performance with our institutional-grade matching engine.',
-    creator: '@legacyfx',
+    creator: '@primemeridianmarkets',
   },
   icons: {
     icon: '/favicon.ico',
@@ -75,6 +75,8 @@ export const viewport: Viewport = {
 };
 
 import { AuthProvider } from '@/context/AuthContext';
+import { Web3Provider } from '@/components/Web3Provider';
+import { Toaster } from 'react-hot-toast';
 
 export default function RootLayout({
   children,
@@ -93,8 +95,11 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css" />
       </head>
       <body className="bg-bg-primary text-text-primary font-body antialiased">
+        <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
         <AuthProvider>
-          {children}
+          <Web3Provider>
+            {children}
+          </Web3Provider>
         </AuthProvider>
       </body>
     </html>

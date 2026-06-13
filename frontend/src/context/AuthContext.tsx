@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useMemo, use
 import { api } from '@/lib/api';
 import { API_ENDPOINTS } from '@/constants';
 import { User } from '@/global';
+import { SessionGuard } from '@/components/SessionGuard';
 
 interface AuthContextType {
   user: User | null;
@@ -22,15 +23,6 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const checkAuth = useCallback(async () => {
     try {
-      const token = typeof globalThis === 'undefined' ? null : localStorage.getItem('access_token');
-
-      if (!token) {
-        setIsAuthenticated(false);
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
       const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
 
       const userData: User = {
@@ -61,7 +53,8 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       setUser(userData);
       setIsAuthenticated(true);
     } catch (err: any) {
-      if (process.env.NODE_ENV !== 'production') {
+      // Only log if it's an unexpected error, not a normal 401 (unauthenticated)
+      if (process.env.NODE_ENV !== 'production' && err?.response?.status !== 401 && err?.message !== 'Request failed with status code 401') {
         console.error('Auth check error:', err);
       }
       api.setToken(null);
@@ -96,14 +89,6 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const token = typeof globalThis === 'undefined' ? null : localStorage.getItem('access_token');
-      if (!token) {
-        api.setToken(null);
-        setUser(null);
-        setIsAuthenticated(false);
-        return;
-      }
-
       const response: any = await api.get(API_ENDPOINTS.AUTH.SESSION);
 
       const userData: User = {
@@ -147,6 +132,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      <SessionGuard />
     </AuthContext.Provider>
   );
 }

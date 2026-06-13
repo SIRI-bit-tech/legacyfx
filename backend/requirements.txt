@@ -27,3 +27,4 @@ websockets
 apscheduler
 pytz
 slowapi
+resend

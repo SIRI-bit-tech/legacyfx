@@ -41,6 +41,6 @@ def require_tier(required_tiers: Union[List[str], str]):
     return tier_dependency
 
 # Predefined tier dependencies for common use cases
-require_pro_or_higher = require_tier(['PRO', 'ELITE', 'LEGACY_MASTER'])
-require_elite_or_higher = require_tier(['ELITE', 'LEGACY_MASTER'])
-require_legacy_master = require_tier(['LEGACY_MASTER'])
+require_pro_or_higher = require_tier(['PRO', 'ELITE', 'PRIME_MASTER'])
+require_elite_or_higher = require_tier(['ELITE', 'PRIME_MASTER'])
+require_prime_master = require_tier(['PRIME_MASTER'])

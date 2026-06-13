@@ -87,7 +87,7 @@ export default function AdminTransactionsPage() {
         <div className="bg-bg-secondary p-1 rounded-xl shadow-sm">
           <AdminTable
             columns={columns}
-            data={txs}
+            data={txs.filter(t => (!filters.type || t.type === filters.type) && (!filters.asset || t.asset_symbol === filters.asset))}
             loading={loading}
             emptyMessage="No transactions found."
           />

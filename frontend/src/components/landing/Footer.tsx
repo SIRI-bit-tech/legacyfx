@@ -9,7 +9,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-20">
           <div className="md:col-span-4">
             <Link href="/" className="inline-block mb-6">
-              <span className="text-2xl font-display font-bold text-color-primary">Legacy FX</span>
+              <span className="text-2xl font-display font-bold text-color-primary">Prime Meridian Markets</span>
             </Link>
             <p className="text-text-secondary max-w-xs leading-relaxed mb-8">
               The premier choice for institutional digital asset management. 
@@ -60,7 +60,7 @@ export default function Footer() {
 
         <div className="pt-8 border-t border-[#2B3139] flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-text-tertiary text-xs tracking-wide">
-            &copy; {new Date().getFullYear()} Legacy FX Global Limited. All rights reserved.
+            &copy; {new Date().getFullYear()} Prime Meridian Markets Global Limited. All rights reserved.
           </div>
           <div className="flex gap-8 text-xs text-text-tertiary uppercase tracking-widest">
             <Link href="#" className="hover:text-text-secondary">Privacy Policy</Link>

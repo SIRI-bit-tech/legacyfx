@@ -6,6 +6,7 @@ class TradeCreateRequest(BaseModel):
     symbol: str
     quantity: float
     trade_type: str
+    two_fa_code: str
 
 class TradeResponse(BaseModel):
     id: str

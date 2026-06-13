@@ -23,7 +23,7 @@ export const ReferralLinkCard: React.FC<ReferralLinkCardProps> = ({
   };
 
   const handleShare = (platform: string) => {
-    const text = `Join Legacy FX and start trading with me! Use my referral link: ${referralLink}`;
+    const text = `Join Prime Meridian Markets and start trading with me! Use my referral link: ${referralLink}`;
     const encodedText = encodeURIComponent(text);
     const encodedUrl = encodeURIComponent(referralLink);
 
