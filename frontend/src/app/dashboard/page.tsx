@@ -118,7 +118,7 @@ export default function DashboardPage() {
         </header>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
             <div className="flex justify-between items-start mb-4">
               <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Net Worth</p>
@@ -164,32 +164,6 @@ export default function DashboardPage() {
             <p className="text-[10px] text-color-warning font-bold mt-3">BTC Dominance: {globalStats?.btc_dominance?.toFixed(1) || '--'}%</p>
           </div>
 
-          <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
-            <div className="flex justify-between items-start mb-4">
-              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Cold Storage</p>
-              <Link href="/cold-storage">
-                <i className="pi pi-lock text-color-info hover:text-color-primary transition cursor-pointer"></i>
-              </Link>
-            </div>
-            <p className="font-mono text-3xl font-bold text-color-info tracking-tight">
-              ${coldStorageBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            <Link href="/cold-storage" className="text-[10px] text-color-info font-bold mt-3 hover:underline">Manage Vault →</Link>
-          </div>
-
-          <div className="bg-bg-secondary border border-color-border rounded-2xl p-6 hover:border-color-primary/30 transition shadow-lg">
-            <div className="flex justify-between items-start mb-4">
-              <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Staking</p>
-              <Link href="/staking">
-                <i className="pi pi-chart-line text-color-success hover:text-color-primary transition cursor-pointer"></i>
-              </Link>
-            </div>
-            <p className="font-mono text-3xl font-bold text-color-success tracking-tight">
-              ${stakingStats?.total_staked_usd ? stakingStats.total_staked_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-            </p>
-            <p className="text-[10px] text-color-success font-bold mt-3">{stakingStats?.active_stakes_count || 0} Active • {stakingStats?.avg_apy ? stakingStats.avg_apy.toFixed(1) : '0'}% APY</p>
-            <Link href="/staking" className="text-[10px] text-color-success font-bold mt-2 hover:underline block">View Staking →</Link>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">

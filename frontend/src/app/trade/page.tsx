@@ -61,6 +61,7 @@ function TradePageContent() {
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [leverage, setLeverage] = useState<number>(100);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: openOrdersData, mutate: mutateOrders } = useSWR(user ? '/trading/orders/open' : null, (url) => api.get(url));
   const { data: fundsData, mutate: mutateFunds } = useSWR(user ? '/trading/funds' : null, (url) => api.get(url));
   const { data: positionsData, mutate: mutatePositions } = useSWR(user ? '/trading/positions' : null, (url) => api.get(url));
@@ -109,6 +110,7 @@ function TradePageContent() {
     }
     
     try {
+      setIsSubmitting(true);
       const executionPrice = orderType === 'LIMIT' ? parseFloat(limitPrice) : currentPrice;
       const selectedLeverage = leverage || user?.default_leverage || 100;
       const notionalSize = parseFloat(amount) * selectedLeverage;
@@ -146,8 +148,10 @@ function TradePageContent() {
       setStopLoss('');
       setLimitPrice('');
       
+      setIsSubmitting(false);
       setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} $${amount} of ${symbol} executed at ${newOrder.price}.`, type: 'success' });
     } catch (error: any) {
+      setIsSubmitting(false);
       setTradeAlert({ 
         isOpen: true, 
         title: 'Trade Failed', 
@@ -267,6 +271,7 @@ function TradePageContent() {
                   </div>
                 </div>
                 <button
+                  disabled={isSubmitting}
                   onClick={() => {
                     if (user?.one_click_trading || user?.confirmation_dialogs === false) {
                       executeOrder();
@@ -274,9 +279,19 @@ function TradePageContent() {
                       setShowConfirm(true);
                     }
                   }}
-                  className={`w-full py-4 rounded-xl font-black text-black transition shadow-lg ${side === 'BUY' ? 'bg-color-success shadow-color-success/10' : 'bg-color-danger shadow-color-danger/10'}`}
+                  className={`w-full py-4 rounded-xl font-black transition shadow-lg ${
+                    isSubmitting 
+                      ? 'bg-bg-tertiary text-text-tertiary cursor-not-allowed'
+                      : side === 'BUY' ? 'bg-color-success shadow-color-success/10 text-black' : 'bg-color-danger shadow-color-danger/10 text-black'
+                  }`}
                 >
-                  {side} {symbol.replace('USDT', '')}
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <i className="pi pi-spin pi-spinner text-lg"></i> Processing...
+                    </span>
+                  ) : (
+                    `${side} ${symbol.replace('USDT', '')}`
+                  )}
                 </button>
 
                 {showConfirm && (

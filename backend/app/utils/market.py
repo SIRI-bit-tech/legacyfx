@@ -4,21 +4,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+BINANCE_BASE = "https://api.binance.com/api/v3"
+COINCAP_BASE = "https://api.coincap.io/v2"
 
 import redis.asyncio as redis
 from app.config import get_settings
 
 settings = get_settings()
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-
 async def get_live_price(symbol: str) -> float:
-    """Get live price for a symbol (e.g. BTC, ETH)"""
+    """Get live price for a symbol using Binance (Primary) and CoinCap (Backup)"""
+    original_symbol = symbol
     symbol = symbol.upper().replace("/", "").replace("-", "")
     if symbol.endswith("USDT"):
         symbol = symbol[:-4]
     elif symbol.endswith("USD"):
         symbol = symbol[:-3]
+        
+    stablecoins = {"USDT", "USDC", "BUSD", "DAI", "TUSD"}
+    if symbol in stablecoins:
+        return 1.0
         
     # Check cache first using Redis
     try:
@@ -28,45 +33,53 @@ async def get_live_price(symbol: str) -> float:
     except Exception as e:
         logger.warning(f"Redis cache error for {symbol}: {e}")
 
-    # Map symbol to Coingecko ID
+    # 1. Try Binance API (Primary)
+    binance_symbol = f"{symbol}USDT"
+    
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{BINANCE_BASE}/ticker/price?symbol={binance_symbol}")
+            if response.status_code == 200:
+                data = response.json()
+                price = float(data.get("price", 0))
+                if price > 0:
+                    await _cache_price(symbol, price)
+                    return price
+    except Exception as e:
+        logger.warning(f"Binance API failed for {symbol}: {e}")
+
+    # 2. Try CoinCap API (Backup)
     mapping = {
         "BTC": "bitcoin",
         "ETH": "ethereum",
-        "USDT": "tether",
         "SOL": "solana",
-        "BNB": "binancecoin",
-        "XRP": "ripple",
+        "BNB": "binance-coin",
+        "XRP": "xrp",
         "ADA": "cardano",
         "DOGE": "dogecoin",
         "DOT": "polkadot",
         "TRX": "tron"
     }
     
-    id = mapping.get(symbol)
-    if not id:
-        return 1.0 # Default for stablecoins or unknowns
-        
-    url = f"{COINGECKO_BASE}/simple/price"
-    params = {
-        "ids": id,
-        "vs_currencies": "usd"
-    }
+    coincap_id = mapping.get(symbol, symbol.lower())
     
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            price = data.get(id, {}).get("usd", 1.0)
-            try:
-                await redis_client.set(f"price_{symbol}", price, ex=60) # 1 minute cache
-            except Exception as e:
-                logger.warning(f"Failed to set Redis cache for {symbol}: {e}")
-            return price
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{COINCAP_BASE}/assets/{coincap_id}")
+            if response.status_code == 200:
+                data = response.json()
+                price = float(data.get("data", {}).get("priceUsd", 0))
+                if price > 0:
+                    await _cache_price(symbol, price)
+                    return price
     except Exception as e:
-        logger.error(f"Failed to fetch price for {symbol}: {e}")
-        try:
-            cached_price = await redis_client.get(f"price_{symbol}")
-            return float(cached_price) if cached_price is not None else 1.0
-        except:
-            return 1.0
+        logger.warning(f"CoinCap API failed for {symbol}: {e}")
+
+    # If both APIs fail, we must strictly reject the trade rather than guess $1.00
+    raise ValueError(f"Live price for {original_symbol} is currently unavailable from all feeds.")
+
+async def _cache_price(symbol: str, price: float):
+    try:
+        await redis_client.set(f"price_{symbol}", price, ex=60) # 1 minute cache
+    except Exception as e:
+        logger.warning(f"Failed to set Redis cache for {symbol}: {e}")

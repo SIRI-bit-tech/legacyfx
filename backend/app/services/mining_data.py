@@ -46,24 +46,14 @@ class MiningDataService:
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            # 1. Fetch market price from CoinGecko (free, always works)
+            # 1. Fetch market price from Binance/CoinCap
             try:
-                price_resp = await client.get(
-                    f"{self.coingecko_api}/simple/price",
-                    params={
-                        "ids": coin_info["coingecko_id"],
-                        "vs_currencies": "usd",
-                        "include_market_cap": "true"
-                    }
-                )
-                if price_resp.status_code == 200:
-                    price_data = price_resp.json()
-                    coin_id = coin_info["coingecko_id"]
-                    if coin_id in price_data:
-                        stats["market_price_usd"] = price_data[coin_id]["usd"]
-                        logger.info(f"Got {coin_symbol} price from CoinGecko: ${price_data[coin_id]['usd']}")
+                from app.utils.market import get_live_price
+                price = await get_live_price(coin_symbol)
+                stats["market_price_usd"] = price
+                logger.info(f"Got {coin_symbol} price from market API: ${price}")
             except Exception as e:
-                logger.error(f"Error fetching CoinGecko price for {coin_symbol}: {str(e)}")
+                logger.error(f"Error fetching price for {coin_symbol}: {str(e)}")
 
             # 2. Fetch mining-specific data based on source
             if coin_info["source"] == "blockchain":
