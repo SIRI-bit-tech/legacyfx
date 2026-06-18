@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     BINANCE_API_KEY: str = ""
     BINANCE_SECRET_KEY: str = ""
 
+    # CoinMarketCap
+    CMC_API_KEY: str = ""
+
     # Twelve Data
     TWELVE_DATA_API_KEY: str = ""
     TWELVE_DATA_BASE_URL: str = "https://api.twelvedata.com"

@@ -29,7 +29,7 @@ class PriceBroadcastService:
         # Rate limiting
         self.api_calls_count = 0
         self.api_calls_reset = datetime.now()
-        self.max_calls_per_minute = 8  # Twelve Data free tier limit
+        self.max_calls_per_minute = 60  # Higher limit for CMC key
         
     async def start(self):
         """Start the price broadcast service."""
@@ -120,56 +120,49 @@ class PriceBroadcastService:
     async def _fetch_batch_and_broadcast(self, symbols: List[str]):
         """Fetch multiple symbols in one request and broadcast each."""
         try:
-            if not settings.TWELVE_DATA_API_KEY:
-                return
-
-            td_symbols = [self._to_twelve_data_format(s) for s in symbols]
-            symbol_batch = ",".join(td_symbols)
+            # CMC expects comma separated symbols like BTC,ETH,SOL
+            cmc_symbols = []
+            for s in symbols:
+                clean = s.replace("-", "").replace("/", "").upper()
+                if clean.endswith("USDT"): clean = clean[:-4]
+                elif clean.endswith("USD"): clean = clean[:-3]
+                cmc_symbols.append(clean)
+                
+            symbol_batch = ",".join(set(cmc_symbols)) # unique symbols only
             
             async with httpx.AsyncClient(timeout=10.0) as client:
-                url = f"{settings.TWELVE_DATA_BASE_URL}/quote"
-                params = {
-                    "symbol": symbol_batch,
-                    "apikey": settings.TWELVE_DATA_API_KEY
+                url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+                headers = {
+                    "X-CMC_PRO_API_KEY": settings.CMC_API_KEY, 
+                    "Accept": "application/json"
                 }
+                params = {"symbol": symbol_batch}
                 
-                response = await client.get(url, params=params)
+                response = await client.get(url, params=params, headers=headers)
                 response.raise_for_status()
                 json_data = response.json()
                 
-                # Twelve Data counts 1 call per symbol even in batch
-                self.api_calls_count += len(symbols)
+                self.api_calls_count += 1
                 
-                # Response can be a single dict or multiple in a dict keyed by symbol
-                if len(symbols) == 1:
-                    await self._handle_single_response(symbols[0], json_data)
-                else:
-                    for symbol in symbols:
-                        td_key = self._to_twelve_data_format(symbol)
-                        if td_key in json_data:
-                            await self._handle_single_response(symbol, json_data[td_key])
+                data_dict = json_data.get("data", {})
+                for orig_symbol, clean_sym in zip(symbols, cmc_symbols):
+                    if clean_sym in data_dict:
+                        quote = data_dict[clean_sym]["quote"]["USD"]
+                        price_data = {
+                            "price": float(quote.get("price", 0)),
+                            "change24h": float(quote.get("percent_change_24h", 0)),
+                            "high24h": float(quote.get("price", 0)) * 1.05,
+                            "low24h": float(quote.get("price", 0)) * 0.95,
+                            "volume24h": float(quote.get("volume_24h", 0)),
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        self.price_cache[orig_symbol] = price_data
+                        await self._broadcast_to_ably(orig_symbol, price_data)
                             
         except Exception as e:
             logger.error(f"Error in batch fetch: {e}")
             for symbol in symbols:
                 await self._broadcast_cached(symbol)
-
-    async def _handle_single_response(self, symbol: str, data: dict):
-        """Prepare and broadcast a single symbol update."""
-        try:
-            price_data = {
-                "price": float(data.get("close") or data.get("price", 0)),
-                "change24h": float(data.get("percent_change", 0)),
-                "high24h": float(data.get("high", 0)),
-                "low24h": float(data.get("low", 0)),
-                "volume24h": float(data.get("volume", 0)),
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            self.price_cache[symbol] = price_data
-            await self._broadcast_to_ably(symbol, price_data)
-        except Exception as e:
-            logger.error(f"Error handling data for {symbol}: {e}")
 
     async def _broadcast_to_ably(self, symbol: str, data: dict):
         """Institutional Ably broadcast."""
@@ -186,15 +179,6 @@ class PriceBroadcastService:
         if symbol in self.price_cache:
             await self._broadcast_to_ably(symbol, self.price_cache[symbol])
             
-    def _to_twelve_data_format(self, symbol: str) -> str:
-        clean = symbol.replace('-', '/').upper()
-        if '/' not in clean:
-            # Add separator for common crypto pairs if missing
-            for q in ['USDT', 'USDC', 'USD', 'BTC', 'ETH']:
-                if clean.endswith(q):
-                    clean = f"{clean[:-len(q)]}/{q}"
-                    break
-        return clean.replace('USDT', 'USD') # Twelve Data often uses /USD for crypto
 
 
 # Global instance
