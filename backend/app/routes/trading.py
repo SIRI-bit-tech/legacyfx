@@ -290,7 +290,7 @@ async def get_portfolio(
         else:
             pnl = (pos.entry_price - current_price) * pos.quantity
             
-        value = pos.margin + pnl
+        value = current_price * pos.quantity
         total_unrealized_pnl += pnl
         used_margin += pos.margin
         
@@ -605,6 +605,9 @@ async def close_position(
     else:
         pnl = (position.entry_price - current_price) * position.quantity
         
+    # Cap the loss to the margin amount (Liquidation limit)
+    if pnl <= -position.margin:
+        pnl = -position.margin
     # 4. Update Position
     position.status = PositionStatus.CLOSED
     position.closed_at = datetime.utcnow()

@@ -14,7 +14,7 @@ redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 async def get_live_price(symbol: str) -> float:
     """Get live price for a symbol (e.g. BTC, ETH)"""
-    symbol = symbol.upper()
+    symbol = symbol.upper().replace("/", "").replace("-", "")
     if symbol.endswith("USDT"):
         symbol = symbol[:-4]
     elif symbol.endswith("USD"):

@@ -39,6 +39,7 @@ class OrderMatchingEngine:
         while self.running:
             try:
                 await self.process_pending_orders()
+                await self.process_open_positions()
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -68,6 +69,112 @@ class OrderMatchingEngine:
                 await self._evaluate_order(db, order, current_price)
             
             await db.commit()
+
+    async def process_open_positions(self):
+        from app.models.trading import Position, PositionStatus
+        async with async_session() as db:
+            stmt = select(Position).where(Position.status == PositionStatus.OPEN)
+            result = await db.execute(stmt)
+            open_positions = result.scalars().all()
+            
+            if not open_positions:
+                return
+                
+            symbols = set(pos.symbol for pos in open_positions)
+            live_prices = {}
+            for symbol in symbols:
+                live_prices[symbol] = await get_live_price(symbol)
+                
+            for pos in open_positions:
+                current_price = live_prices.get(pos.symbol, 0)
+                if current_price == 0:
+                    continue
+                    
+                await self._evaluate_position(db, pos, current_price)
+            
+            await db.commit()
+
+    async def _evaluate_position(self, db: AsyncSession, pos, current_price: float):
+        from app.models.trading import OrderSide, PositionStatus
+        should_close = False
+        reason = ""
+        
+        # Calculate unrealized PNL to check for Liquidation
+        if pos.side == OrderSide.BUY:
+            unrealized_pnl = (current_price - pos.entry_price) * pos.quantity
+        else:
+            unrealized_pnl = (pos.entry_price - current_price) * pos.quantity
+            
+        # 1. Check Liquidation (Loss exceeds margin)
+        if unrealized_pnl <= -pos.margin:
+            should_close = True
+            reason = "Liquidation"
+            # Cap the loss to exactly the margin amount
+            current_price = pos.entry_price - (pos.margin / pos.quantity) if pos.side == OrderSide.BUY else pos.entry_price + (pos.margin / pos.quantity)
+        
+        # 2. Check Take Profit
+        if not should_close and pos.take_profit:
+            if pos.side == OrderSide.BUY and current_price >= pos.take_profit:
+                should_close = True
+                reason = "Take Profit"
+            elif pos.side == OrderSide.SELL and current_price <= pos.take_profit:
+                should_close = True
+                reason = "Take Profit"
+                
+        if not should_close and pos.stop_loss:
+            if pos.side == OrderSide.BUY and current_price <= pos.stop_loss:
+                should_close = True
+                reason = "Stop Loss"
+            elif pos.side == OrderSide.SELL and current_price >= pos.stop_loss:
+                should_close = True
+                reason = "Stop Loss"
+                
+        if should_close:
+            await self._execute_position_close(db, pos, current_price, reason)
+
+    async def _execute_position_close(self, db: AsyncSession, pos, execution_price: float, reason: str):
+        from app.models.trading import PositionStatus, OrderSide
+        from app.models.finance import Transaction, TransactionType
+        from app.models.user import User
+        
+        if pos.side == OrderSide.BUY:
+            pnl = (execution_price - pos.entry_price) * pos.quantity
+        else:
+            pnl = (pos.entry_price - execution_price) * pos.quantity
+            
+        pos.status = PositionStatus.CLOSED
+        pos.closed_at = datetime.utcnow()
+        pos.realized_pnl = pnl
+        
+        stmt = select(User).where(User.id == pos.user_id)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if user:
+            user.trading_balance += pnl
+            
+            txn = Transaction(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                type=TransactionType.TRADE,
+                asset_symbol="USD",
+                amount=pnl,
+                usd_amount=pnl,
+                description=f"Auto-closed {pos.side.value} {pos.symbol} ({reason})",
+                reference_id=pos.id
+            )
+            db.add(txn)
+            
+            from app.models.notification import Notification
+            notification = Notification(
+                id=str(uuid.uuid4()),
+                user_id=user.id,
+                type="TRADE",
+                title=f"Position Auto-Closed ({reason})",
+                message=f"Your {pos.side.value} position for {pos.symbol} was automatically closed at {execution_price:,.2f} with ${pnl:,.2f} PNL.",
+                is_read=False
+            )
+            db.add(notification)
 
     async def _evaluate_order(self, db: AsyncSession, order: Order, current_price: float):
         should_execute = False

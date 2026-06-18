@@ -215,7 +215,9 @@ export default function DashboardPage() {
                       <tr key={i} className="hover:bg-bg-tertiary/30 transition-colors">
                         <td className="py-4 px-6 font-bold text-text-primary">
                            <div className="flex items-center gap-2">
-                             <span className="w-6 h-6 rounded bg-bg-tertiary text-[10px] flex items-center justify-center border border-color-border">{h.symbol}</span>
+                             <span className="w-6 h-6 rounded bg-bg-tertiary text-[10px] font-black flex items-center justify-center border border-color-border shrink-0">
+                               {h.symbol ? h.symbol.substring(0, 1).toUpperCase() : '?'}
+                             </span>
                              {h.symbol}
                            </div>
                         </td>
