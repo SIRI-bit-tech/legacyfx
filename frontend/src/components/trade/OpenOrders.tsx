@@ -131,7 +131,10 @@ export function OpenOrders() {
                 ${order.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </td>
               <td className="py-3 px-4 text-right font-mono text-text-secondary">
-                {order.quantity.toFixed(4)}
+                <div className="flex flex-col items-end">
+                  <span className="font-bold text-text-primary">{order.quantity.toFixed(4)}</span>
+                  <span className="text-[10px]">${(order.quantity * order.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
               </td>
               <td className="py-3 px-4 text-right font-mono text-text-secondary">
                 {order.filled.toFixed(4)} ({((order.filled / order.quantity) * 100).toFixed(0)}%)

@@ -7,6 +7,7 @@ import { useAuth } from './useAuth';
 export type PortfolioSummary = {
   netWorth: number;
   available: number;
+  freeMargin: number;
   inOrders: number;
   unrealisedPnl: number;
   pnlPercent: number;
@@ -29,6 +30,7 @@ export function usePortfolioSummary(userId?: string): PortfolioSummary {
   const [summary, setSummary] = useState<PortfolioSummary>({
     netWorth: 0,
     available: 0,
+    freeMargin: 0,
     inOrders: 0,
     unrealisedPnl: 0,
     pnlPercent: 0,
@@ -57,6 +59,7 @@ export function usePortfolioSummary(userId?: string): PortfolioSummary {
         setSummary({
           netWorth: Number(res.netWorth || 0),
           available: Number(res.available || 0),
+          freeMargin: Number(res.freeMargin || 0),
           inOrders: Number(res.inOrders || 0),
           unrealisedPnl: Number(res.unrealisedPnl || 0),
           pnlPercent: Number(res.pnlPercent || 0),

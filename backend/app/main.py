@@ -82,9 +82,15 @@ async def lifespan(app: FastAPI):
     await synthetic_orderbook_service.start()
     logger.info("Synthetic order book service started")
     
+    # Start Order Matching Engine
+    from app.services.order_matching_engine import order_matching_engine
+    await order_matching_engine.start()
+    logger.info("Order matching engine started")
+    
     yield
     
     # Stop price and orderbook services on shutdown
+    await order_matching_engine.stop()
     await price_broadcast_service.stop()
     await kucoin_orderbook_service.stop()
     await synthetic_orderbook_service.stop()

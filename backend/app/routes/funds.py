@@ -59,25 +59,30 @@ async def get_funds_summary(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     from app.utils.market import get_live_price
+    from app.models.trading import Position, PositionStatus
 
-    assets_stmt = select(UserAsset).where(UserAsset.user_id == userId)
-    assets_result = await db.execute(assets_stmt)
-    assets = assets_result.scalars().all()
+    open_positions_stmt = select(Position).where(
+        Position.user_id == userId, Position.status == PositionStatus.OPEN
+    )
+    open_positions_result = await db.execute(open_positions_stmt)
+    open_positions = open_positions_result.scalars().all()
 
-    available_assets_value = 0.0
-    in_orders_assets_value = 0.0
+    unrealized_pnl = 0.0
+    used_margin = 0.0
 
-    for a in assets:
-        price = await get_live_price(a.asset_symbol)
-        qty_available = float(a.available_balance or 0)
-        qty_total = float(a.total_balance or 0)
-        
-        available_assets_value += (qty_available * price)
-        in_orders_assets_value += ((qty_total - qty_available) * price)
+    for pos in open_positions:
+        price = await get_live_price(pos.symbol)
+        if pos.side.value == "BUY":
+            pnl = (price - pos.entry_price) * pos.quantity
+        else:
+            pnl = (pos.entry_price - price) * pos.quantity
+        unrealized_pnl += pnl
+        used_margin += pos.margin
 
-    available = float(current_user.trading_balance or 0) + available_assets_value
-    in_orders = in_orders_assets_value
-    net_worth = available + in_orders
+    available = float(current_user.trading_balance or 0)
+    net_worth = available + unrealized_pnl
+    free_margin = available + unrealized_pnl - used_margin
+    pnl_percent = (unrealized_pnl / available * 100) if available > 0 else 0.0
 
     open_orders_stmt = select(Order).where(
         Order.user_id == userId,
@@ -89,9 +94,10 @@ async def get_funds_summary(
     return {
         "netWorth": net_worth,
         "available": available,
-        "inOrders": in_orders,
-        "unrealisedPnl": 0.0,
-        "pnlPercent": 0.0,
+        "freeMargin": free_margin,
+        "inOrders": used_margin,
+        "unrealisedPnl": unrealized_pnl,
+        "pnlPercent": pnl_percent,
         "change24h": 0.0,
         "openOrdersCount": open_orders_count,
     }
@@ -106,6 +112,15 @@ async def get_funds_assets(
     """Get per-asset balances for Assets table and Trade Funds tab."""
     if userId != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
+
+    from app.models.trading import Position, PositionStatus
+
+    open_positions_stmt = select(Position).where(
+        Position.user_id == userId, Position.status == PositionStatus.OPEN
+    )
+    open_positions_result = await db.execute(open_positions_stmt)
+    open_positions = open_positions_result.scalars().all()
+    usd_in_orders = sum(pos.margin for pos in open_positions)
 
     stmt = select(UserAsset).where(UserAsset.user_id == userId)
     result = await db.execute(stmt)
@@ -130,8 +145,8 @@ async def get_funds_assets(
                 "symbol": "USD",
                 "name": "US Dollar",
                 "total": usd_balance,
-                "available": usd_balance,
-                "inOrders": 0.0,
+                "available": max(0.0, usd_balance - usd_in_orders),
+                "inOrders": usd_in_orders,
             },
         )
 

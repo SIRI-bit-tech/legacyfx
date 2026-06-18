@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import uuid
 import logging
 
-from app.database import get_db
+from app.database import get_db, get_read_db
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.asset import Asset
@@ -18,7 +18,7 @@ from app.models.finance import (
 from app.models.deposit_addresses import DepositAddress
 from app.models.mining import MiningPlan, MiningSubscription, MiningStatus
 from app.models.settings import SystemSettings
-from app.models.trading import ExecutionTrade
+from app.models.trading import ExecutionTrade, Position, PositionStatus, OrderSide
 from app.utils.admin_auth import get_current_admin
 from app.utils.market import get_live_price
 from app.schemas.admin import AdminRegisterRequest, AdminLoginRequest, AdminAuthResponse
@@ -81,7 +81,7 @@ async def require_admin(current_admin: Admin = Depends(get_current_admin)) -> Ad
     return current_admin
 
 @router.get("/stats")
-async def get_platform_stats(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def get_platform_stats(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """Get overall platform statistics for admin dashboard."""
     # Total Users
     user_stmt = select(func.count(User.id))
@@ -113,15 +113,24 @@ async def get_platform_stats(db: AsyncSession = Depends(get_db), _ = Depends(req
     }
 
 @router.get("/users", response_model=List[dict])
-async def list_users(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_users(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all registered users."""
     stmt = select(User).order_by(User.created_at.desc())
     result = await db.execute(stmt)
     users = result.scalars().all()
-    return [{"id": u.id, "email": u.email, "tier": u.tier, "status": u.status, "kyc_status": u.kyc_status} for u in users]
+    return [{
+        "id": u.id, 
+        "email": u.email, 
+        "tier": u.tier.value if hasattr(u.tier, 'value') else u.tier, 
+        "status": u.status.value if hasattr(u.status, 'value') else u.status, 
+        "kyc_status": u.kyc_status.value if hasattr(u.kyc_status, 'value') else u.kyc_status,
+        "trading_balance": float(u.trading_balance or 0),
+        "account_balance": float(u.account_balance or 0),
+        "created_at": u.created_at.isoformat() if u.created_at else None
+    } for u in users]
 
 @router.get("/kyc/pending")
-async def list_pending_kyc(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_pending_kyc(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all users with pending KYC verification."""
     from app.models.user import KYCStatus
     stmt = select(User).where(User.kyc_status == KYCStatus.PENDING)
@@ -130,7 +139,7 @@ async def list_pending_kyc(db: AsyncSession = Depends(get_db), _ = Depends(requi
     return [{"id": u.id, "email": u.email, "username": u.username, "created_at": u.created_at} for u in users]
 
 @router.get("/kyc/user/{user_id}/documents")
-async def get_user_documents(user_id: str, db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def get_user_documents(user_id: str, db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """Get all documents uploaded by a specific user for review."""
     from app.models.document import Document
     stmt = select(Document).where(Document.user_id == user_id)
@@ -271,7 +280,27 @@ async def approve_deposit(
     )
     db.add(notification)
     
+    # Broadcast notification
+    try:
+        if 'ably_client' not in locals() or ably_client is None:
+            from app.utils.ably import get_ably_client
+            ably_client = get_ably_client()
+        if ably_client:
+            channel = ably_client.channels.get(f"notifications:{user.id}")
+            await channel.publish("new_notification", {
+                "id": notification.id,
+                "type": notification.type,
+                "title": notification.title,
+                "message": notification.message,
+                "is_read": notification.is_read,
+                "link": None,
+                "created_at": datetime.utcnow().isoformat()
+            })
+    except Exception as e:
+        logger.error(f"Failed to broadcast notification: {e}")
+    
     # Send email to the user
+    from app.utils.email import send_email, create_email_template
     email_content = create_email_template(
         title="Deposit Approved",
         message="Balance or deposit has been received and balance updated. You can now trade and enjoy broker services.",
@@ -310,7 +339,7 @@ async def approve_withdrawal(
 @router.get("/mining/subscriptions")
 async def get_mining_subscriptions(
     status: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
     _ = Depends(require_admin)
 ):
     """List mining subscriptions for admin review."""
@@ -389,7 +418,7 @@ async def approve_mining_subscription(
 @router.get("/subscriptions")
 async def list_user_subscriptions(
     status: Optional[str] = "PENDING",
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
     _ = Depends(require_admin)
 ):
     """List general user subscriptions for admin review."""
@@ -499,11 +528,35 @@ async def approve_user_subscription(
     )
     tx_result = await db.execute(tx_stmt)
     tx = tx_result.scalar_one_or_none()
-    if tx:
-        tx.status = "COMPLETED"
-        tx.type = TransactionType.SUBSCRIPTION_PAYMENT
-
-    await db.commit()
+    
+    # Send system notification
+    notification = Notification(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        type="SUBSCRIPTION",
+        title="Subscription Approved",
+        message=f"Your {plan.name} subscription is now active! Your plan will expire on {expiry_date}.",
+        is_read=False
+    )
+    db.add(notification)
+    
+    # Broadcast notification
+    try:
+        if 'ably_client' not in locals():
+            from app.utils.ably import get_ably_client
+            ably_client = get_ably_client()
+        channel = ably_client.channels.get(f"notifications:{user.id}")
+        await channel.publish("new_notification", {
+            "id": notification.id,
+            "type": notification.type,
+            "title": notification.title,
+            "message": notification.message,
+            "is_read": notification.is_read,
+            "link": None,
+            "created_at": datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Failed to broadcast notification: {e}")
     
     # 4. Send activation email to user
     from app.utils.email import send_email, create_email_template
@@ -689,7 +742,7 @@ async def update_deposit_address(
 
 @router.get("/deposit-addresses")
 async def list_deposit_addresses(
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
     _=Depends(require_admin),
 ):
     """List all configured deposit addresses."""
@@ -715,7 +768,7 @@ async def list_deposit_addresses(
 
 
 @router.get("/deposits", response_model=List[dict])
-async def list_all_deposits(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_all_deposits(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all user deposits for admin review."""
     stmt = select(Deposit, User.email).join(User, Deposit.user_id == User.id).order_by(Deposit.created_at.desc())
     result = await db.execute(stmt)
@@ -738,7 +791,7 @@ async def list_all_deposits(db: AsyncSession = Depends(get_db), _ = Depends(requ
 
 
 @router.get("/withdrawals", response_model=List[dict])
-async def list_all_withdrawals(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_all_withdrawals(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all user withdrawals for admin review."""
     stmt = select(Withdrawal, User.email).join(User, Withdrawal.user_id == User.id).order_by(Withdrawal.created_at.desc())
     result = await db.execute(stmt)
@@ -761,7 +814,7 @@ async def list_all_withdrawals(db: AsyncSession = Depends(get_db), _ = Depends(r
 
 
 @router.get("/transactions", response_model=List[dict])
-async def list_all_transactions(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_all_transactions(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all platform transactions for audit."""
     stmt = select(Transaction, User.email).join(User, Transaction.user_id == User.id).order_by(Transaction.created_at.desc())
     result = await db.execute(stmt)
@@ -782,7 +835,7 @@ async def list_all_transactions(db: AsyncSession = Depends(get_db), _ = Depends(
 
 
 @router.get("/orders", response_model=List[dict])
-async def list_all_orders(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_all_orders(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all execution trades (orders) for monitoring."""
     stmt = select(ExecutionTrade, User.email).join(User, ExecutionTrade.user_id == User.id).order_by(ExecutionTrade.created_at.desc())
     result = await db.execute(stmt)
@@ -801,7 +854,7 @@ async def list_all_orders(db: AsyncSession = Depends(get_db), _ = Depends(requir
 
 
 @router.get("/assets", response_model=List[dict])
-async def list_assets(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def list_assets(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all configured assets."""
     stmt = select(Asset).order_by(Asset.symbol)
     result = await db.execute(stmt)
@@ -846,7 +899,7 @@ async def create_asset(request: AssetCreateRequest, db: AsyncSession = Depends(g
 
 
 @router.get("/settings")
-async def get_all_settings(db: AsyncSession = Depends(get_db), _ = Depends(require_admin)):
+async def get_all_settings(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """Retrieve all system settings."""
     stmt = select(SystemSettings)
     result = await db.execute(stmt)
@@ -871,3 +924,90 @@ async def update_settings(settings_dict: dict, db: AsyncSession = Depends(get_db
             
     await db.commit()
     return {"message": "Settings updated successfully"}
+
+@router.get("/positions")
+async def list_all_positions(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
+    """List all global open positions with live PNL."""
+    stmt = select(Position, User.email).join(User, Position.user_id == User.id).where(Position.status == PositionStatus.OPEN).order_by(Position.created_at.desc())
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    positions = []
+    for pos, email in rows:
+        live_price = await get_live_price(pos.symbol)
+        
+        if pos.side == OrderSide.BUY:
+            pnl = (live_price - pos.entry_price) * pos.quantity
+        else:
+            pnl = (pos.entry_price - live_price) * pos.quantity
+            
+        pnl_percent = (pnl / pos.margin) * 100 if pos.margin > 0 else 0
+        
+        positions.append({
+            "id": pos.id,
+            "user_email": email,
+            "symbol": pos.symbol,
+            "side": pos.side.value,
+            "quantity": float(pos.quantity),
+            "entry_price": float(pos.entry_price),
+            "current_price": float(live_price),
+            "leverage": float(pos.leverage),
+            "margin": float(pos.margin),
+            "pnl": float(pnl),
+            "pnl_percent": float(pnl_percent),
+            "created_at": pos.created_at.isoformat()
+        })
+        
+    return positions
+
+
+@router.patch("/positions/{position_id}/close")
+async def admin_close_position(
+    position_id: str,
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """Admin forcefully closes a user's open position."""
+    stmt = select(Position).where(Position.id == position_id, Position.status == PositionStatus.OPEN)
+    result = await db.execute(stmt)
+    pos = result.scalar_one_or_none()
+    
+    if not pos:
+        raise HTTPException(status_code=404, detail="Open position not found")
+        
+    # Get user
+    u_stmt = select(User).where(User.id == pos.user_id)
+    u_result = await db.execute(u_stmt)
+    user = u_result.scalar_one()
+    
+    live_price = await get_live_price(pos.symbol)
+    
+    if pos.side == OrderSide.BUY:
+        pnl = (live_price - pos.entry_price) * pos.quantity
+    else:
+        pnl = (pos.entry_price - live_price) * pos.quantity
+        
+    # Apply the PNL to balances
+    user.trading_balance += pnl
+    user.account_balance += pnl
+    
+    pos.status = PositionStatus.CLOSED
+    pos.closed_price = live_price
+    pos.closed_at = datetime.utcnow()
+    pos.pnl = pnl
+    
+    txn = Transaction(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        type=TransactionType.TRADE,
+        asset_symbol="USD",
+        amount=pnl,
+        usd_amount=pnl,
+        description=f"Admin Force Closed {pos.symbol} {pos.side.value} (PNL: {pnl:.2f})",
+        reference_id=pos.id,
+        status="COMPLETED"
+    )
+    db.add(txn)
+    
+    await db.commit()
+    return {"message": "Position force closed successfully", "pnl": pnl}

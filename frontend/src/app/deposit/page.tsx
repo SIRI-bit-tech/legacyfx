@@ -39,8 +39,9 @@ export default function DepositPage() {
 
   const fetchAddress = async () => {
     setLoading(true);
+    setAddress('');
     try {
-      const network = selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ERC20' : 'TRC20';
+      const network = selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ETHEREUM' : 'USDT(TRC20)';
       const res: any = await api.get(`${API_ENDPOINTS.DEPOSITS.ADDRESS}?asset_symbol=${selectedAsset}&blockchain_network=${network}`);
       setAddress(res.wallet_address);
     } catch (e) {
@@ -61,7 +62,7 @@ export default function DepositPage() {
         asset_symbol: selectedAsset,
         amount: Number.parseFloat(cryptoAmount),
         fiat_amount: Number.parseFloat(usdAmount),
-        blockchain_network: selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ERC20' : 'TRC20'
+        blockchain_network: selectedAsset === 'BTC' ? 'BITCOIN' : selectedAsset === 'ETH' ? 'ETHEREUM' : 'USDT(TRC20)'
       });
       setPendingDepositId(res.id);
       setShowProofModal(true);

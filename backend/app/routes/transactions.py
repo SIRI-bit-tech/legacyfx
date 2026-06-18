@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List
 
-from app.database import get_db
+from app.database import get_db, get_read_db
 from app.models.user import User
 from app.models.finance import Deposit, Withdrawal, DepositStatus, WithdrawalStatus, Transaction
 from app.models.trading import ExecutionTrade
@@ -20,7 +20,7 @@ async def list_transactions(
     request: Request,
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     per_page: int = Query(50, ge=1, le=MAX_PAGE_SIZE, description="Items per page (max 100)"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
     current_user: User = Depends(get_current_user)
 ):
     """List paginated transactions for the current user (ledger)."""
@@ -77,7 +77,7 @@ async def recent_transactions(
     userId: str,
     limit: int = 5,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_read_db),
 ) -> dict:
     """Get a combined recent list of deposits, withdrawals and trades."""
     if userId != current_user.id:

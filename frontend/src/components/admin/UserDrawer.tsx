@@ -49,12 +49,16 @@ export function UserDrawer({
         {/* Info Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-bg-tertiary/30 p-3 rounded-lg border border-color-border/50">
-            <p className="text-[10px] text-text-tertiary uppercase font-black mb-1">Total Balance</p>
-            <p className="text-xl font-black text-text-primary font-mono">$0.00</p>
+            <p className="text-[10px] text-text-tertiary uppercase font-black mb-1">Trading Balance</p>
+            <p className="text-xl font-black text-text-primary font-mono">${(user.trading_balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+          </div>
+          <div className="bg-bg-tertiary/30 p-3 rounded-lg border border-color-border/50">
+            <p className="text-[10px] text-text-tertiary uppercase font-black mb-1">Account Equity</p>
+            <p className="text-xl font-black text-text-primary font-mono">${(user.account_balance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
           </div>
           <div className="bg-bg-tertiary/30 p-3 rounded-lg border border-color-border/50">
             <p className="text-[10px] text-text-tertiary uppercase font-black mb-1">Joined Date</p>
-            <p className="text-sm font-bold text-text-secondary">Oct 24, 2023</p>
+            <p className="text-sm font-bold text-text-secondary">{user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</p>
           </div>
         </div>
 

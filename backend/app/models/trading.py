@@ -22,6 +22,34 @@ class OrderStatus(str, enum.Enum):
     EXPIRED = "EXPIRED"
     REJECTED = "REJECTED"
 
+class PositionStatus(str, enum.Enum):
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+
+class Position(Base):
+    __tablename__ = "positions"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(String(36), index=True, nullable=False)
+    symbol = Column(String(20), index=True, nullable=False)
+    
+    side = Column(Enum(OrderSide), nullable=False)
+    quantity = Column(Float, nullable=False)
+    entry_price = Column(Float, nullable=False)
+    
+    leverage = Column(Float, default=1.0)
+    margin = Column(Float, default=0.0)
+    
+    take_profit = Column(Float, nullable=True)
+    stop_loss = Column(Float, nullable=True)
+    
+    status = Column(Enum(PositionStatus), default=PositionStatus.OPEN)
+    realized_pnl = Column(Float, default=0.0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)
+
 class TradingPair(Base):
     __tablename__ = "trading_pairs"
 
@@ -52,10 +80,14 @@ class Order(Base):
     
     quantity = Column(Float, nullable=False)
     price = Column(Float, nullable=True) # Null for MARKET orders
+    take_profit = Column(Float, nullable=True)
     stop_price = Column(Float, nullable=True)
     
     executed_quantity = Column(Float, default=0.0)
     average_price = Column(Float, nullable=True)
+    
+    leverage = Column(Float, default=1.0)
+    margin = Column(Float, default=0.0)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

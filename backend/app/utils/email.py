@@ -46,6 +46,38 @@ def create_email_template(title: str, code: str = None, message: str = None, val
         </tr>
         """
     
+    security_notice_html = ""
+    if safe_code:
+        security_notice_html = f"""
+        <tr>
+            <td style="padding: 20px 30px;">
+                <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
+                    <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
+                    <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
+                        Do not share this code with anyone. Prime Meridian Markets staff will never ask for your verification code.
+                        <br><br>
+                        If you didn't request this code, you can safely ignore this email.
+                    </p>
+                </div>
+            </td>
+        </tr>
+        """
+    else:
+        security_notice_html = f"""
+        <tr>
+            <td style="padding: 20px 30px;">
+                <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
+                    <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
+                    <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
+                        Please be aware of phishing attacks. Prime Meridian Markets staff will never ask for your password or prompt you to transfer funds to unknown external addresses.
+                        <br><br>
+                        If you did not authorize this action, please contact support immediately.
+                    </p>
+                </div>
+            </td>
+        </tr>
+        """
+    
     return f"""
     <!DOCTYPE html>
     <html>
@@ -81,18 +113,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         {message_section}
                         
                         <!-- Security Notice -->
-                        <tr>
-                            <td style="padding: 20px 30px;">
-                                <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
-                                    <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
-                                        Do not share this code with anyone. Prime Meridian Markets staff will never ask for your verification code.
-                                        <br><br>
-                                        If you didn't request this code, you can safely ignore this email.
-                                    </p>
-                                </div>
-                            </td>
-                        </tr>
+                        {security_notice_html}
                         
                         <!-- Footer -->
                         <tr>

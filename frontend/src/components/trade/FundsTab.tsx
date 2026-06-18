@@ -10,6 +10,11 @@ export function FundsTab() {
   const { assets, loading, error } = usePortfolioAssets();
   const [showAll, setShowAll] = useState(false);
 
+  const getDecimals = (symbol: string) => {
+    const fiats = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
+    return fiats.includes(symbol.toUpperCase()) ? 2 : 8;
+  };
+
   // Filter balances based on showAll toggle
   const displayedBalances = showAll ? assets : assets.filter((a) => a.total > 0);
 
@@ -97,13 +102,13 @@ export function FundsTab() {
                   </div>
                 </td>
                 <td className="py-3 px-4 text-right font-mono text-text-primary font-bold">
-                  {balance.total.toFixed(8)}
+                  {balance.total.toFixed(getDecimals(balance.symbol))}
                 </td>
                 <td className="py-3 px-4 text-right font-mono text-color-success">
-                  {balance.available.toFixed(8)}
+                  {balance.available.toFixed(getDecimals(balance.symbol))}
                 </td>
                 <td className="py-3 px-4 text-right font-mono text-text-tertiary">
-                  {balance.inOrders.toFixed(8)}
+                  {balance.inOrders.toFixed(getDecimals(balance.symbol))}
                 </td>
               </tr>
             ))}

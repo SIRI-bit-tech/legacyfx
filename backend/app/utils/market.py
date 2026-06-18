@@ -6,17 +6,27 @@ logger = logging.getLogger(__name__)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
-# Cache for prices to avoid rate limiting
-_price_cache: Dict[str, float] = {}
+import redis.asyncio as redis
+from app.config import get_settings
+
+settings = get_settings()
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 async def get_live_price(symbol: str) -> float:
     """Get live price for a symbol (e.g. BTC, ETH)"""
     symbol = symbol.upper()
-    
-    # Check cache first (primitive cache)
-    # In production, use Redis or similar
-    if symbol in _price_cache:
-        return _price_cache[symbol]
+    if symbol.endswith("USDT"):
+        symbol = symbol[:-4]
+    elif symbol.endswith("USD"):
+        symbol = symbol[:-3]
+        
+    # Check cache first using Redis
+    try:
+        cached_price = await redis_client.get(f"price_{symbol}")
+        if cached_price is not None:
+            return float(cached_price)
+    except Exception as e:
+        logger.warning(f"Redis cache error for {symbol}: {e}")
 
     # Map symbol to Coingecko ID
     mapping = {
@@ -48,8 +58,15 @@ async def get_live_price(symbol: str) -> float:
             response.raise_for_status()
             data = response.json()
             price = data.get(id, {}).get("usd", 1.0)
-            _price_cache[symbol] = price
+            try:
+                await redis_client.set(f"price_{symbol}", price, ex=60) # 1 minute cache
+            except Exception as e:
+                logger.warning(f"Failed to set Redis cache for {symbol}: {e}")
             return price
     except Exception as e:
         logger.error(f"Failed to fetch price for {symbol}: {e}")
-        return _price_cache.get(symbol, 1.0)
+        try:
+            cached_price = await redis_client.get(f"price_{symbol}")
+            return float(cached_price) if cached_price is not None else 1.0
+        except:
+            return 1.0

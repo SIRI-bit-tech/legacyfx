@@ -42,9 +42,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-# Strip query parameters that asyncpg doesn't support (like sslmode)
-db_url = settings.DATABASE_URL.split("?")[0]
-config.set_main_option("sqlalchemy.url", db_url)
+from app.database import engine
 
 target_metadata = Base.metadata
 
@@ -66,16 +64,7 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 async def run_async_migrations() -> None:
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        connect_args={
-            "ssl": True if "neon.tech" in db_url else False,
-            "statement_cache_size": 0,
-            "prepared_statement_cache_size": 0
-        }
-    )
+    connectable = engine
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

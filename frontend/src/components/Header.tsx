@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAbly } from '@/hooks/useAbly';
 import TickerTape from '@/components/landing/TickerTape';
 import api from '@/lib/api';
 
@@ -25,6 +26,12 @@ export function Header() {
       fetchNotifications();
     }
   }, [user]);
+
+  useAbly(user ? `notifications:${user.id}` : '', (message: any) => {
+    if (message.name === 'new_notification' && message.data) {
+      setNotifications(prev => [message.data, ...prev]);
+    }
+  });
 
   const fetchNotifications = async () => {
     try {

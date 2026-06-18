@@ -24,6 +24,7 @@ export interface User {
   slippage_tolerance?: number;
   tax_residency?: string;
   data_sharing_enabled?: boolean;
+  trading_balance?: number;
   created_at: string;
 }
 

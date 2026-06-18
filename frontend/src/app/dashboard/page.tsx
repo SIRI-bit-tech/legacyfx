@@ -147,7 +147,7 @@ export default function DashboardPage() {
               <p className="text-text-tertiary text-[10px] font-black uppercase tracking-widest">Trading Balance</p>
               <i className="pi pi-wallet text-color-success"></i>
             </div>
-            <p className="font-mono text-3xl font-bold text-color-success tracking-tight">
+            <p className={`font-mono text-3xl font-bold tracking-tight ${summary.available < 0 ? 'text-color-danger' : 'text-color-success'}`}>
               {summary.loading ? '--' : `$${summary.available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </p>
             <p className="text-[10px] text-text-tertiary font-bold mt-3">Available to trade</p>

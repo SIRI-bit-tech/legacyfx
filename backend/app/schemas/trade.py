@@ -6,7 +6,12 @@ class TradeCreateRequest(BaseModel):
     symbol: str
     quantity: float
     trade_type: str
-    two_fa_code: str
+    order_type: str = "MARKET"
+    price: Optional[float] = None
+    leverage: Optional[float] = None
+    take_profit: Optional[float] = None
+    stop_loss: Optional[float] = None
+    two_fa_code: Optional[str] = None
 
 class TradeResponse(BaseModel):
     id: str
@@ -15,10 +20,10 @@ class TradeResponse(BaseModel):
     quantity: float
     entry_price: float
     status: str
-    pnl: Optional[float]
-    pnl_percentage: Optional[float]
+    pnl: Optional[float] = None
+    pnl_percentage: Optional[float] = None
     created_at: datetime
-    closed_at: Optional[datetime]
+    closed_at: Optional[datetime] = None
 
 class PortfolioHolding(BaseModel):
     symbol: str

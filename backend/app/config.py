@@ -6,6 +6,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://localhost/primemeridianmarkets"
+    READ_DATABASE_URL: Optional[str] = None
     REDIS_URL: str = "redis://localhost:6379"
 
     # Better Auth

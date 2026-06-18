@@ -7,7 +7,7 @@ import uuid
 import logging
 
 logger = logging.getLogger(__name__)
-from app.database import get_db
+from app.database import get_db, get_read_db
 from app.models.user import User, UserStatus
 from app.schemas.auth import (
     RegisterRequest, RegisterResponse, LoginRequest, 
@@ -316,7 +316,7 @@ async def logout(
 @router.get("/session")
 async def get_session(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_read_db)
 ):
     stmt = select(User).where(User.id == current_user.id)
     result = await db.execute(stmt)
@@ -564,7 +564,7 @@ async def disable_2fa(
 @router.get("/login-history")
 async def get_login_history(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_read_db)
 ):
     from app.models.security import LoginHistory
     stmt = select(LoginHistory).where(LoginHistory.user_id == current_user.id).order_by(LoginHistory.login_timestamp.desc()).limit(10)
@@ -575,7 +575,7 @@ async def get_login_history(
 @router.get("/trusted-devices")
 async def get_trusted_devices(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_read_db)
 ):
     from app.models.security import TrustedDevice
     stmt = select(TrustedDevice).where(TrustedDevice.user_id == current_user.id, TrustedDevice.is_trusted == True)

@@ -148,8 +148,8 @@ async def get_trading_pairs(db: AsyncSession = Depends(get_db)):
     return [
         TradingPairResponse(
             id=str(p.id),
-            base_symbol=p.base_symbol,
-            quote_symbol=p.quote_symbol,
+            base_symbol=p.base_asset,
+            quote_symbol=p.quote_asset,
             is_active=p.is_active
         ) for p in pairs
     ]

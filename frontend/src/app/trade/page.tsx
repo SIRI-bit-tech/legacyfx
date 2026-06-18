@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { TradeTopBar } from '@/components/trade/TradeTopBar';
 import { OrderBook } from '@/components/trade/OrderBook';
 import { OpenOrders } from '@/components/trade/OpenOrders';
+import { ActivePositions } from '@/components/trade/ActivePositions';
 import { OrderHistory } from '@/components/trade/OrderHistory';
 import { TradeHistory } from '@/components/trade/TradeHistory';
 import { FundsTab } from '@/components/trade/FundsTab';
@@ -13,11 +14,11 @@ import { useSearchParams } from 'next/navigation';
 import { KYCGuard } from '@/components/user/KYCGuard';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertModal } from '@/components/shared/AlertModal';
+import { api } from '@/lib/api';
+import useSWR from 'swr';
+import { LiveMarginPanel } from '@/components/trade/LiveMarginPanel';
 
-declare global {
-  var TradingView: any;
-}
-
+import { LightweightChart, OrderMarker } from '@/components/trade/LightweightChart';
 const getTradingViewSymbol = (rawSymbol: string): string => {
   const s = rawSymbol.replaceAll(/[-/]/g, '').toUpperCase().trim();
   const fxQuotes = ['USD', 'JPY', 'CHF', 'GBP', 'CAD', 'AUD', 'NZD'];
@@ -27,6 +28,15 @@ const getTradingViewSymbol = (rawSymbol: string): string => {
   const isCrypto = cryptoQuotes.some((q) => s.endsWith(q));
   if (isCrypto) return `BINANCE:${s}`;
   return `NASDAQ:${s}`;
+};
+
+const getAssetType = (rawSymbol: string): 'crypto' | 'forex' | 'stock' => {
+  const s = rawSymbol.replaceAll(/[-/]/g, '').toUpperCase().trim();
+  const fxQuotes = ['USD', 'JPY', 'CHF', 'GBP', 'CAD', 'AUD', 'NZD'];
+  if (s.length === 6 && fxQuotes.some((q) => s.endsWith(q)) && !s.endsWith('USDT')) return 'forex';
+  const cryptoQuotes = ['USDT', 'USDC', 'BTC', 'ETH', 'BNB'];
+  if (cryptoQuotes.some((q) => s.endsWith(q))) return 'crypto';
+  return 'stock';
 };
 
 const normalizeAppSymbol = (raw: string): string => {
@@ -45,103 +55,138 @@ function TradePageContent() {
   const [orderType, setOrderType] = useState(searchParams.get('entry') ? 'LIMIT' : 'MARKET');
   const [amount, setAmount] = useState('');
   const [activeTab, setActiveTab] = useState(0);
+  const [activeOrders, setActiveOrders] = useState<OrderMarker[]>([]);
   const [tradeAlert, setTradeAlert] = useState<{ isOpen: boolean; title: string; message: string; type: 'info' | 'success' | 'error' | 'warning' | 'danger' }>({ isOpen: false, title: '', message: '', type: 'info' });
+  const [limitPrice, setLimitPrice] = useState('');
+  const [takeProfit, setTakeProfit] = useState('');
+  const [stopLoss, setStopLoss] = useState('');
+  const [leverage, setLeverage] = useState<number>(100);
+  const { data: openOrdersData, mutate: mutateOrders } = useSWR(user ? '/trading/orders/open' : null, (url) => api.get(url));
+  const { data: fundsData, mutate: mutateFunds } = useSWR(user ? '/trading/funds' : null, (url) => api.get(url));
+  const { data: positionsData, mutate: mutatePositions } = useSWR(user ? '/trading/positions' : null, (url) => api.get(url));
+
+  // Load active positions from backend (persists across login/logout)
+  useEffect(() => {
+    if (positionsData && Array.isArray(positionsData)) {
+      const markers: OrderMarker[] = positionsData
+        .filter((p: any) => p.is_open && p.symbol === symbol)
+        .map((p: any) => ({
+          id: p.id,
+          time: Math.floor(new Date(p.created_at).getTime() / 1000),
+          price: p.entry_price,
+          side: p.side as 'BUY' | 'SELL',
+          quantity: p.quantity,
+          takeProfit: p.take_profit,
+          stopLoss: p.stop_loss,
+        }));
+      setActiveOrders(markers);
+    }
+  }, [positionsData, symbol]);
 
   useEffect(() => {
     if (user) {
-       setOrderType(user.default_order_type || 'MARKET');
-       setAmount(user.default_lot_size?.toString() || '');
+      setOrderType(user.default_order_type || 'MARKET');
+      setAmount(user.default_lot_size?.toString() || '');
+      setLeverage(user.default_leverage || 100);
     }
   }, [user]);
 
-  const tvWidgetRef = useRef<any>(null);
-  const tradingViewContainerRef = useRef<HTMLDivElement | null>(null);
-  const stats = useTopBarStats(symbol, 'crypto');
+  const assetType = getAssetType(symbol);
+  const stats = useTopBarStats(symbol, assetType);
 
-  useEffect(() => {
-    const next = normalizeAppSymbol(querySymbol || '');
-    if (next) setSymbol((prev) => (prev === next ? prev : next));
-  }, [querySymbol]);
-
-  const ensureTvScript = useCallback(async (): Promise<void> => {
-    if (globalThis.TradingView !== undefined) return;
-
-    const scriptId = 'tradingview-widget-script';
-    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
-
-    if (!script) {
-      script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://s3.tradingview.com/tv.js';
-      script.async = true;
-      document.head.appendChild(script);
+  const executeOrder = async () => {
+    const currentPrice = stats?.price || 0;
+    if (currentPrice === 0) return;
+    
+    if (!takeProfit || !stopLoss) {
+      setTradeAlert({ isOpen: true, title: 'Validation Error', message: 'Take Profit and Stop Loss are required.', type: 'warning' });
+      return;
     }
-
-    // Wait for script to load or timeout
-    for (let i = 0; i < 80; i++) {
-      if (globalThis.TradingView !== undefined) return;
-      await new Promise(resolve => globalThis.setTimeout(resolve, 50));
+    
+    if (orderType === 'LIMIT' && !limitPrice) {
+      setTradeAlert({ isOpen: true, title: 'Validation Error', message: 'Limit Price is required for Limit Orders.', type: 'warning' });
+      return;
     }
-  }, []);
+    
+    try {
+      const executionPrice = orderType === 'LIMIT' ? parseFloat(limitPrice) : currentPrice;
+      const selectedLeverage = leverage || user?.default_leverage || 100;
+      const notionalSize = parseFloat(amount) * selectedLeverage;
+      const cryptoQuantity = notionalSize / executionPrice;
 
-  useEffect(() => {
-    let cancelled = false;
-    const init = async () => {
-      let container: HTMLDivElement | null = null;
-      for (let i = 0; i < 400; i++) {
-        container = tradingViewContainerRef.current;
-        if (container) break;
-        await new Promise((r) => globalThis.setTimeout(r, 50));
-      }
-      if (!container || cancelled) return;
-      await ensureTvScript();
-      if (cancelled) return;
-
-      if (tvWidgetRef.current?.remove) tvWidgetRef.current.remove();
-      container.innerHTML = '';
-
-      tvWidgetRef.current = new globalThis.TradingView.widget({
-        width: '100%',
-        height: '100%',
-        symbol: getTradingViewSymbol(symbol),
-        interval: 'D',
-        timezone: 'Etc/UTC',
-        theme: 'dark',
-        style: '1',
-        locale: 'en',
-        toolbar_bg: '#f1f3f6',
-        enable_publishing: false,
-        hide_side_toolbar: false,
-        allow_symbol_change: true,
-        container_id: 'tradingview_widget',
-        backgroundColor: '#1e2329',
-        gridColor: 'rgba(43, 47, 54, 1)',
+      const response = await api.post('/trading/orders', {
+        symbol,
+        quantity: cryptoQuantity,
+        trade_type: side,
+        order_type: orderType,
+        price: orderType === 'LIMIT' ? parseFloat(limitPrice) : undefined,
+        leverage: selectedLeverage,
+        take_profit: parseFloat(takeProfit),
+        stop_loss: parseFloat(stopLoss)
       });
-    };
-    init();
-    return () => { cancelled = true; };
-  }, [symbol, ensureTvScript]);
+      
+      const newOrder: OrderMarker = {
+        id: response.id || Math.random().toString(36).substr(2, 9),
+        time: Math.floor(Date.now() / 1000), // seconds timestamp
+        price: response.entry_price || executionPrice,
+        side: side as 'BUY' | 'SELL',
+        quantity: cryptoQuantity,
+        takeProfit: parseFloat(takeProfit),
+        stopLoss: parseFloat(stopLoss),
+      };
+      
+      setActiveOrders(prev => [...prev, newOrder]);
+      mutateOrders(); // Refresh from backend
+      mutateFunds();  // Refresh balance
+      mutatePositions(); // Refresh positions
+      
+      // Clear the form for next trade
+      setAmount('');
+      setTakeProfit('');
+      setStopLoss('');
+      setLimitPrice('');
+      
+      setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} $${amount} of ${symbol} executed at ${newOrder.price}.`, type: 'success' });
+    } catch (error: any) {
+      setTradeAlert({ 
+        isOpen: true, 
+        title: 'Trade Failed', 
+        message: error.message || 'Failed to execute order. Please check your balance.', 
+        type: 'error' 
+      });
+    }
+  };
+
+  // Using new LightweightChart component instead of TradingView widget
 
   return (
     <DashboardLayout>
       <KYCGuard>
         <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
-          <div className="flex-1 flex flex-col border-r border-color-border">
+          <div className="flex-1 flex flex-col border-r border-color-border min-w-0">
             <TradeTopBar symbol={symbol} onSymbolChange={setSymbol} />
-            <div className="flex-1 lg:h-[500px] bg-bg-primary relative min-h-[300px]">
-              <div ref={tradingViewContainerRef} id="tradingview_widget" className="absolute inset-0" />
+            <div className="flex-1 flex flex-col relative min-h-0">
+              {/* Live Chart Container */}
+              <LightweightChart symbol={symbol} assetType={assetType} orders={activeOrders} />
             </div>
-            <div className="hidden lg:flex h-64 bg-bg-secondary border-t border-color-border flex-col">
-              <div className="flex border-b border-color-border px-4">
-                {['Open Orders', 'Order History', 'Trade History', 'Funds'].map((tab, i) => (
+            <LiveMarginPanel
+              balance={fundsData?.[0]?.total_balance || user?.trading_balance || 0}
+              currentPrice={stats?.price || 0}
+              activeOrders={activeOrders}
+              leverage={leverage || user?.default_leverage || 100}
+            />
+            <div className="hidden lg:flex h-64 bg-bg-secondary border-t border-color-border flex-col min-w-0">
+              <div className="flex border-b border-color-border px-4 overflow-x-auto hide-scrollbar">
+                {['Positions', 'Open Orders', 'Order History', 'Trade History', 'Funds'].map((tab, i) => (
                   <button key={tab} onClick={() => setActiveTab(i)} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${activeTab === i ? 'border-color-primary text-color-primary' : 'border-transparent text-text-tertiary hover:text-text-primary'}`}>{tab}</button>
                 ))}
               </div>
               <div className="flex-1 overflow-y-auto">
-                {activeTab === 0 && <OpenOrders />}
-                {activeTab === 1 && <OrderHistory />}
-                {activeTab === 2 && <TradeHistory />}
-                {activeTab === 3 && <FundsTab />}
+                {activeTab === 0 && <ActivePositions positions={positionsData || []} mutatePositions={mutatePositions} mutateFunds={mutateFunds} />}
+                {activeTab === 1 && <OpenOrders />}
+                {activeTab === 2 && <OrderHistory />}
+                {activeTab === 3 && <TradeHistory />}
+                {activeTab === 4 && <FundsTab />}
               </div>
             </div>
           </div>
@@ -173,24 +218,58 @@ function TradePageContent() {
               </div>
 
               <div className="space-y-3">
+                {orderType === 'LIMIT' && (
+                  <div className="relative">
+                    <input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} className="w-full bg-bg-tertiary border border-color-border rounded-lg pl-4 pr-12 py-3 text-sm focus:border-color-primary outline-none text-left text-text-primary font-mono" placeholder="Limit Price" />
+                    <span className="absolute right-3 top-3 text-[10px] text-text-tertiary font-bold uppercase">USD</span>
+                  </div>
+                )}
                 <div className="relative">
-                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-bg-tertiary border border-color-border rounded-lg pl-4 pr-12 py-3 text-sm focus:border-color-primary outline-none text-right text-text-primary font-mono" placeholder="0.00" />
-                  <span className="absolute right-3 top-3 text-[10px] text-text-tertiary font-bold uppercase">{symbol.replace('USDT', '')}</span>
+                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-bg-tertiary border border-color-border rounded-lg pl-4 pr-12 py-3 text-sm focus:border-color-primary outline-none text-left text-text-primary font-mono" placeholder="0.00" />
+                  <span className="absolute right-3 top-3 text-[10px] text-text-tertiary font-bold uppercase">USD</span>
                 </div>
-                <div className="flex justify-between px-1 text-[10px] text-text-tertiary font-black uppercase tracking-widest">
-                   <span>Leverage: {user?.default_leverage || 100}x</span>
-                   <span>Slippage: {user?.slippage_tolerance || 0.5}%</span>
+                
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} className="w-full bg-bg-tertiary border border-color-border rounded-lg pl-8 py-3 text-sm focus:border-color-success outline-none text-right text-text-primary font-mono" placeholder="Take Profit" />
+                    <span className="absolute left-3 top-3 text-[10px] text-color-success font-bold uppercase">TP</span>
+                  </div>
+                  <div className="relative flex-1">
+                    <input type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} className="w-full bg-bg-tertiary border border-color-border rounded-lg pl-8 py-3 text-sm focus:border-color-danger outline-none text-right text-text-primary font-mono" placeholder="Stop Loss" />
+                    <span className="absolute left-3 top-3 text-[10px] text-color-danger font-bold uppercase">SL</span>
+                  </div>
                 </div>
-                 <button 
+
+                <div className="flex flex-col gap-2 pt-2 border-t border-color-border/30">
+                  <div className="flex justify-between px-1 text-[10px] text-text-tertiary font-black uppercase tracking-widest">
+                    <span>Leverage: {leverage}x</span>
+                    <span>Slippage: {user?.slippage_tolerance || 0.5}%</span>
+                  </div>
+                  <div className="px-1 flex items-center gap-3">
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="1000" 
+                      step="1"
+                      value={leverage} 
+                      onChange={(e) => setLeverage(parseInt(e.target.value))} 
+                      className="flex-1 accent-color-primary h-1 bg-bg-tertiary rounded-lg appearance-none cursor-pointer" 
+                    />
+                    <div className="relative w-16">
+                      <input 
+                        type="number" 
+                        value={leverage} 
+                        onChange={(e) => setLeverage(parseInt(e.target.value) || 1)}
+                        className="w-full bg-bg-tertiary border border-color-border rounded pl-2 pr-4 py-1 text-xs focus:border-color-primary outline-none text-right text-text-primary font-mono" 
+                      />
+                      <span className="absolute right-1.5 top-1 text-[10px] text-text-tertiary font-bold">x</span>
+                    </div>
+                  </div>
+                </div>
+                <button
                   onClick={() => {
-                    if (!user?.two_fa_enabled) {
-                      setTradeAlert({ isOpen: true, title: '2FA Required', message: 'You must enable Two-Factor Authentication in your profile security settings before placing trades.', type: 'warning' });
-                      return;
-                    }
-                    if (user?.one_click_trading) {
-                      setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} ${amount} ${symbol} executed at market price.`, type: 'success' });
-                    } else if (user?.confirmation_dialogs === false) {
-                      setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} ${amount} ${symbol} executed at market price.`, type: 'success' });
+                    if (user?.one_click_trading || user?.confirmation_dialogs === false) {
+                      executeOrder();
                     } else {
                       setShowConfirm(true);
                     }
@@ -200,23 +279,31 @@ function TradePageContent() {
                   {side} {symbol.replace('USDT', '')}
                 </button>
 
-               {showConfirm && (
-                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                   <div className="bg-bg-secondary border border-color-border w-full max-w-xs rounded-2xl p-6 shadow-2xl animate-in zoom-in duration-200 text-left">
-                     <h4 className="text-lg font-bold text-text-primary mb-4">Confirm Order</h4>
-                     <div className="space-y-2 mb-6">
-                       <div className="flex justify-between text-xs"><span className="text-text-tertiary">Side</span><span className={side === 'BUY' ? 'text-color-success font-bold' : 'text-color-danger font-bold'}>{side}</span></div>
-                       <div className="flex justify-between text-xs"><span className="text-text-tertiary">Asset</span><span className="text-text-primary font-bold">{symbol}</span></div>
-                       <div className="flex justify-between text-xs"><span className="text-text-tertiary">Amount</span><span className="text-text-primary font-bold">{amount}</span></div>
-                       <div className="flex justify-between text-xs"><span className="text-text-tertiary">Type</span><span className="text-text-primary font-bold">{orderType}</span></div>
-                     </div>
-                     <div className="flex gap-3">
-                       <button onClick={() => setShowConfirm(false)} className="flex-1 py-2 rounded-lg bg-bg-tertiary text-text-secondary text-xs font-bold">Cancel</button>
-                        <button onClick={() => { setShowConfirm(false); setTradeAlert({ isOpen: true, title: 'Order Executed', message: `${side} ${amount} ${symbol} confirmed and executed.`, type: 'success' }); }} className={`flex-1 py-2 rounded-lg text-black text-xs font-black ${side === 'BUY' ? 'bg-color-success' : 'bg-color-danger'}`}>Confirm</button>
-                     </div>
-                   </div>
-                 </div>
-               )}
+                {showConfirm && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-bg-secondary border border-color-border w-full max-w-xs rounded-2xl p-6 shadow-2xl animate-in zoom-in duration-200 text-left">
+                      <h4 className="text-lg font-bold text-text-primary mb-4">Confirm Order</h4>
+                      <div className="space-y-2 mb-6">
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Side</span><span className={side === 'BUY' ? 'text-color-success font-bold' : 'text-color-danger font-bold'}>{side}</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Asset</span><span className="text-text-primary font-bold">{symbol}</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Amount</span><span className="text-text-primary font-bold">${amount}</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Type</span><span className="text-text-primary font-bold">{orderType}</span></div>
+                        {orderType === 'LIMIT' && (
+                          <div className="flex justify-between text-xs"><span className="text-text-tertiary">Limit Price</span><span className="text-text-primary font-bold">{limitPrice}</span></div>
+                        )}
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Take Profit</span><span className="text-color-success font-bold">{takeProfit}</span></div>
+                        <div className="flex justify-between text-xs"><span className="text-text-tertiary">Stop Loss</span><span className="text-color-danger font-bold">{stopLoss}</span></div>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={() => setShowConfirm(false)} className="flex-1 py-2 rounded-lg bg-bg-tertiary text-text-secondary text-xs font-bold">Cancel</button>
+                        <button onClick={() => {
+                          setShowConfirm(false);
+                          executeOrder();
+                        }} className={`flex-1 py-2 rounded-lg text-black text-xs font-black ${side === 'BUY' ? 'bg-color-success' : 'bg-color-danger'}`}>Confirm</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

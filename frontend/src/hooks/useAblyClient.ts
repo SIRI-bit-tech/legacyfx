@@ -26,12 +26,12 @@ export function useAblyClient() {
     // Register this instance as a subscriber
     const sub = (connected: boolean) => setIsConnected(connected);
     statusSubscribers.add(sub);
-    
+
     // Initial sync
     setIsConnected(globalIsConnected);
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    
+
     if (!token || !isAuthenticated) {
       if (globalAblyClient) {
         console.log('useAblyClient: Closing singleton connection');
@@ -87,7 +87,7 @@ export function useAblyClient() {
     return () => {
       // Cleanup listeners for THIS instance
       statusSubscribers.delete(sub);
-      
+
       // We don't close the singleton on unmount to keep it alive for other hooks
       // The singleton closes only on logout (handled above)
     };
@@ -98,9 +98,9 @@ export function useAblyClient() {
     return globalAblyClient.channels.get(channelName);
   };
 
-  return { 
-    channel: getChannel, 
-    isConnected, 
-    client: globalAblyClient 
+  return {
+    channel: getChannel,
+    isConnected,
+    client: globalAblyClient
   };
 }

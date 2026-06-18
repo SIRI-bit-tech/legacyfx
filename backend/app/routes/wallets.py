@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel
 from uuid import uuid4
 
-from app.database import get_db
+from app.database import get_db, get_read_db
 from app.models.user import User
 from app.models.wallet import Wallet, WalletType
 from app.schemas.wallet import WalletResponse
@@ -116,7 +116,7 @@ async def connect_wallet(
 @router.get("/connected", response_model=List[WalletResponse])
 async def get_connected_wallets(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_read_db)
 ):
     """Get all connected wallets for the current user."""
     
@@ -144,7 +144,7 @@ async def get_connected_wallets(
 @router.get("/", response_model=List[WalletResponse])
 async def list_wallets(
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_read_db)
 ):
     """Get all wallets for the current user (alias for /connected)."""
     return await get_connected_wallets(current_user, db)

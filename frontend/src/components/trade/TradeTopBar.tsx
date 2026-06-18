@@ -39,6 +39,36 @@ export function TradeTopBar({ symbol, onSymbolChange }: Readonly<TradeTopBarProp
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownWrapRef = useRef<HTMLDivElement | null>(null);
 
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Load favorites from localStorage on mount
+    try {
+      const stored = localStorage.getItem('legacyfx_favorites');
+      if (stored) {
+        setFavorites(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load favorites', e);
+    }
+  }, []);
+
+  const toggleFavorite = () => {
+    setFavorites(prev => {
+      const next = prev.includes(normalizedCurrent) 
+        ? prev.filter(f => f !== normalizedCurrent)
+        : [...prev, normalizedCurrent];
+      
+      try {
+        localStorage.setItem('legacyfx_favorites', JSON.stringify(next));
+      } catch (e) {}
+      
+      return next;
+    });
+  };
+
+  const isFavorite = favorites.includes(normalizedCurrent);
+
   const stockTickers: SymbolOption[] = useMemo(
     () => [
       { value: 'AAPL', label: 'AAPL' },
@@ -291,11 +321,12 @@ export function TradeTopBar({ symbol, onSymbolChange }: Readonly<TradeTopBarProp
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <button className="p-2 text-text-tertiary hover:text-text-primary transition">
-          <i className="pi pi-bell"></i>
-        </button>
-        <button className="p-2 text-text-tertiary hover:text-text-primary transition">
-          <i className="pi pi-star"></i>
+        <button 
+          onClick={toggleFavorite}
+          className={`p-2 transition ${isFavorite ? 'text-color-primary' : 'text-text-tertiary hover:text-text-primary'}`}
+          title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        >
+          <i className={isFavorite ? "pi pi-star-fill" : "pi pi-star"}></i>
         </button>
       </div>
     </div>

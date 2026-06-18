@@ -62,6 +62,10 @@ async def get_ably_token(current_user: User = Depends(get_current_user)):
             f"orders:{current_user.id}": ["subscribe"],
             # User-specific funds updates
             f"funds:{current_user.id}": ["subscribe"],
+            # User-specific notifications
+            f"notifications:{current_user.id}": ["subscribe"],
+            # User-specific referrals
+            f"referrals:{current_user.id}": ["subscribe"],
         }
         
         # Remove None values from capabilities
