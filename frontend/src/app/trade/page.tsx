@@ -165,7 +165,7 @@ function TradePageContent() {
         <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
           <div className="flex-1 flex flex-col border-r border-color-border min-w-0">
             <TradeTopBar symbol={symbol} onSymbolChange={setSymbol} />
-            <div className="flex-1 flex flex-col relative min-h-0">
+            <div className="h-[50vh] shrink-0 lg:h-auto lg:flex-1 flex flex-col relative min-h-0">
               {/* Live Chart Container */}
               <LightweightChart symbol={symbol} assetType={assetType} orders={activeOrders} />
             </div>
@@ -175,8 +175,8 @@ function TradePageContent() {
               activeOrders={activeOrders}
               leverage={leverage || user?.default_leverage || 100}
             />
-            <div className="hidden lg:flex h-64 bg-bg-secondary border-t border-color-border flex-col min-w-0">
-              <div className="flex border-b border-color-border px-4 overflow-x-auto hide-scrollbar">
+            <div className="flex h-80 lg:h-64 bg-bg-secondary border-t border-color-border flex-col min-w-0">
+              <div className="flex border-b border-color-border px-4 overflow-x-auto hide-scrollbar shrink-0">
                 {['Positions', 'Open Orders', 'Order History', 'Trade History', 'Funds'].map((tab, i) => (
                   <button key={tab} onClick={() => setActiveTab(i)} className={`px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${activeTab === i ? 'border-color-primary text-color-primary' : 'border-transparent text-text-tertiary hover:text-text-primary'}`}>{tab}</button>
                 ))}
@@ -191,7 +191,7 @@ function TradePageContent() {
             </div>
           </div>
           <div className="w-full lg:w-80 flex flex-col bg-bg-secondary lg:border-l border-t lg:border-t-0 border-color-border">
-            <div className="h-64 lg:h-80 border-b border-color-border flex flex-col overflow-hidden">
+            <div className="h-64 lg:h-80 border-b border-color-border flex flex-col overflow-hidden shrink-0">
               <div className="p-3 border-b border-color-border flex justify-between items-center bg-bg-tertiary/20">
                 <span className="text-[10px] font-black uppercase text-text-tertiary tracking-widest">Order Book</span>
               </div>
