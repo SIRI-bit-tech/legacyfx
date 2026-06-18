@@ -30,48 +30,52 @@ COIN_NAMES = {
 
 @router.get("/prices", response_model=List[AssetPriceResponse])
 async def get_market_prices():
-    """Fetch live crypto prices from Binance."""
-    url = f"{BINANCE_BASE}/ticker/24hr"
+    """Fetch live crypto prices from CoinMarketCap."""
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+    headers = {
+        "X-CMC_PRO_API_KEY": settings.CMC_API_KEY,
+        "Accept": "application/json"
+    }
+    params = {
+        "start": "1",
+        "limit": "50",
+        "convert": "USD"
+    }
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url)
+            response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
             
-            # Filter USDT pairs
-            usdt_pairs = [item for item in data if item.get("symbol", "").endswith("USDT")]
-            
-            # Sort by volume (proxy for market cap rank)
-            usdt_pairs.sort(key=lambda x: float(x.get("quoteVolume", 0)), reverse=True)
-            
-            # Take top 50
-            top_50 = usdt_pairs[:50]
-            
             prices = []
-            for idx, coin in enumerate(top_50):
+            for item in data.get("data", []):
                 try:
-                    symbol = coin.get("symbol", "").replace("USDT", "")
-                    name = COIN_NAMES.get(symbol, symbol)
+                    symbol = item.get("symbol", "")
+                    name = item.get("name", symbol)
+                    quote = item.get("quote", {}).get("USD", {})
+                    
+                    price = float(quote.get("price") or 0)
+                    change = float(quote.get("percent_change_24h") or 0)
                     
                     prices.append(
                         AssetPriceResponse(
                             symbol=symbol,
                             name=name,
-                            current_price=float(coin.get("lastPrice") or 0),
-                            market_cap=None,  # Binance doesn't provide market cap
-                            market_cap_rank=idx + 1,
-                            total_volume=float(coin.get("quoteVolume") or 0),
-                            high_24h=float(coin.get("highPrice") or 0),
-                            low_24h=float(coin.get("lowPrice") or 0),
-                            price_change_24h=float(coin.get("priceChange") or 0),
-                            price_change_percentage_24h=float(coin.get("priceChangePercent") or 0),
-                            circulating_supply=None,
+                            current_price=price,
+                            market_cap=float(quote.get("market_cap") or 0),
+                            market_cap_rank=int(item.get("cmc_rank") or 0),
+                            total_volume=float(quote.get("volume_24h") or 0),
+                            high_24h=0.0,
+                            low_24h=0.0,
+                            price_change_24h=price * (change/100),
+                            price_change_percentage_24h=change,
+                            circulating_supply=float(item.get("circulating_supply") or 0),
                             image_url=f"https://assets.coincap.io/assets/icons/{symbol.lower()}@2x.png"
                         )
                     )
                 except Exception as coin_error:
-                    logger.warning(f"Failed to parse coin data: {coin}, error: {coin_error}")
+                    logger.warning(f"Failed to parse coin data: {item}, error: {coin_error}")
                     continue
             
             return prices
@@ -82,21 +86,26 @@ async def get_market_prices():
 @router.get("/global-stats", response_model=GlobalStatsResponse)
 async def get_global_stats(db: AsyncSession = Depends(get_db)):
     """Get global market statistics and platform stats."""
-    url = f"{BINANCE_BASE}/ticker/24hr"
+    url = "https://pro-api.coinmarketcap.com/v1/global-metrics/quotes/latest"
+    headers = {
+        "X-CMC_PRO_API_KEY": settings.CMC_API_KEY,
+        "Accept": "application/json"
+    }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            # 1. External Market Cap (Estimate from Binance)
-            response = await client.get(url)
+            # 1. External Market Cap from CMC
+            response = await client.get(url, headers=headers)
             response.raise_for_status()
-            market_data = response.json()
+            data = response.json()
             
-            total_vol = sum(float(coin.get("quoteVolume", 0)) for coin in market_data if coin.get("symbol", "").endswith("USDT"))
+            global_data = data.get("data", {})
+            quote = global_data.get("quote", {}).get("USD", {})
             
-            # Binance doesn't provide market cap, use highly realistic estimates
-            total_mc = 2500000000000.0  # $2.5 Trillion estimate
-            btc_dom = 53.5
-            eth_dom = 16.2
+            total_mc = float(quote.get("total_market_cap", 2500000000000.0))
+            total_vol = float(quote.get("total_volume_24h", 100000000000.0))
+            btc_dom = float(global_data.get("btc_dominance", 53.5))
+            eth_dom = float(global_data.get("eth_dominance", 16.2))
             
             # 2. Platform Stats
             # Mining stats
