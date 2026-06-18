@@ -65,7 +65,7 @@ export function Header() {
 
   return (
     <header className="bg-bg-secondary border-b border-color-border px-4 lg:px-8 py-3 lg:py-5 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-      <div className="flex-1 overflow-hidden h-8 lg:h-10 max-w-[50%] lg:max-w-2xl mr-4 rounded-xl border border-color-border bg-bg-tertiary">
+      <div className="flex-1 overflow-hidden h-8 lg:h-10 max-w-[50%] lg:max-w-2xl ml-12 lg:ml-0 mr-4 rounded-xl border border-color-border bg-bg-tertiary">
         <TickerTape className="w-full h-full flex items-center" />
       </div>
 
@@ -86,7 +86,7 @@ export function Header() {
           </button>
           
           {showNotifications && (
-            <div className="absolute right-0 lg:right-0 mt-2 lg:mt-4 w-80 lg:w-96 bg-bg-secondary border border-color-border rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200 max-h-[32rem]">
+            <div className="absolute right-0 lg:right-0 mt-2 lg:mt-4 w-80 lg:w-96 bg-bg-secondary border border-color-border rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200 max-h-[32rem] z-50">
               <div className="p-5 border-b border-color-border flex justify-between items-center bg-bg-tertiary/20">
                 <h3 className="font-black text-xs uppercase tracking-widest text-text-primary">Market Alerts</h3>
                 {unreadCount > 0 && (
