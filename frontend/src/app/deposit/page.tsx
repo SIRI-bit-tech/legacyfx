@@ -94,7 +94,7 @@ export default function DepositPage() {
 
   return (
     <DashboardLayout>
-      <KYCGuard>
+      <KYCGuard allowSkip={true}>
         <div className="p-4 md:p-8 max-w-4xl mx-auto">
           <header className="mb-8">
             <h1 className="text-3xl font-bold text-text-primary">Deposit Assets</h1>

@@ -12,24 +12,24 @@ resend.api_key = settings.RESEND_API_KEY
 
 logger = logging.getLogger(__name__)
 
-def create_email_template(title: str, code: str = None, message: str = None, validity_minutes: int = 15) -> str:
+def create_email_template(title: str, code: str = None, message: str = None, validity_minutes: int = 15, escape_html: bool = True) -> str:
     """Create a professional HTML email template matching Binance style with XSS protection."""
     
     # Escape dynamic content to prevent XSS in email clients
     safe_title = html.escape(title)
     safe_code = html.escape(code) if code else None
-    safe_message = html.escape(message) if message else None
+    safe_message = html.escape(message) if (message and escape_html) else message
     
     code_section = ""
     if safe_code:
         code_section = f"""
         <tr>
             <td align="center" style="padding: 30px 20px;">
-                <p style="color: #999999; font-size: 14px; margin: 0 0 15px 0;">Your verification code</p>
-                <div style="background-color: #1f1f1f; border: 2px solid #D4AF37; padding: 20px; border-radius: 8px; display: inline-block;">
+                <p class="code-label" style="color: #444444; font-size: 14px; margin: 0 0 15px 0; font-weight: bold;">Your verification code</p>
+                <div class="code-box" style="background-color: #f4f4f5; border: 2px solid #D4AF37; padding: 20px; border-radius: 8px; display: inline-block;">
                     <p style="color: #D4AF37; font-size: 48px; font-weight: bold; letter-spacing: 8px; margin: 0; font-family: 'Courier New', monospace;">{safe_code}</p>
                 </div>
-                <p style="color: #999999; font-size: 12px; margin: 15px 0 0 0;">Valid for {validity_minutes} minutes</p>
+                <p class="code-label" style="color: #444444; font-size: 12px; margin: 15px 0 0 0;">Valid for {validity_minutes} minutes</p>
             </td>
         </tr>
         """
@@ -38,10 +38,8 @@ def create_email_template(title: str, code: str = None, message: str = None, val
     if safe_message:
         message_section = f"""
         <tr>
-            <td style="padding: 20px 30px;">
-                <p style="color: #cccccc; font-size: 14px; line-height: 1.6; margin: 0;">
-                    {safe_message}
-                </p>
+            <td class="email-body" style="padding: 20px 30px; color: #000000; font-size: 14px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                {safe_message}
             </td>
         </tr>
         """
@@ -51,9 +49,9 @@ def create_email_template(title: str, code: str = None, message: str = None, val
         security_notice_html = f"""
         <tr>
             <td style="padding: 20px 30px;">
-                <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
+                <div class="security-notice" style="background-color: #fafafa; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px; text-align: left;">
                     <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
-                    <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
+                    <p class="security-text" style="color: #3f3f46; font-size: 12px; margin: 0; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                         Do not share this code with anyone. Prime Meridian Markets staff will never ask for your verification code.
                         <br><br>
                         If you didn't request this code, you can safely ignore this email.
@@ -66,9 +64,9 @@ def create_email_template(title: str, code: str = None, message: str = None, val
         security_notice_html = f"""
         <tr>
             <td style="padding: 20px 30px;">
-                <div style="background-color: #2a2a2a; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px;">
+                <div class="security-notice" style="background-color: #fafafa; border-left: 4px solid #D4AF37; padding: 15px; border-radius: 4px; text-align: left;">
                     <p style="color: #D4AF37; font-size: 12px; font-weight: bold; margin: 0 0 8px 0;">🔒 SECURITY NOTICE</p>
-                    <p style="color: #999999; font-size: 12px; margin: 0; line-height: 1.5;">
+                    <p class="security-text" style="color: #3f3f46; font-size: 12px; margin: 0; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                         Please be aware of phishing attacks. Prime Meridian Markets staff will never ask for your password or prompt you to transfer funds to unknown external addresses.
                         <br><br>
                         If you did not authorize this action, please contact support immediately.
@@ -84,12 +82,63 @@ def create_email_template(title: str, code: str = None, message: str = None, val
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="color-scheme" content="light dark">
+        <meta name="supported-color-schemes" content="light dark">
+        <style type="text/css">
+            :root {{
+                color-scheme: light dark;
+                supported-color-schemes: light dark;
+            }}
+            @media (prefers-color-scheme: dark) {{
+                body {{
+                    background-color: #0a0a0a !important;
+                }}
+                .outer-wrapper {{
+                    background-color: #0a0a0a !important;
+                }}
+                .email-container {{
+                    background-color: #121212 !important;
+                    border: 1px solid #27272a !important;
+                }}
+                .email-title {{
+                    color: #ffffff !important;
+                }}
+                .email-body {{
+                    color: #ffffff !important;
+                }}
+                .code-label {{
+                    color: #e4e4e7 !important;
+                }}
+                .code-box {{
+                    background-color: #18181b !important;
+                }}
+                .security-notice {{
+                    background-color: #18181b !important;
+                }}
+                .security-text {{
+                    color: #e4e4e7 !important;
+                }}
+                .email-footer {{
+                    border-top: 1px solid #27272a !important;
+                }}
+                .email-footer p {{
+                    color: #a1a1aa !important;
+                }}
+                .email-disclaimer {{
+                    background-color: #0c0c0e !important;
+                    border-top: 1px solid #27272a !important;
+                }}
+                .email-disclaimer p {{
+                    color: #71717a !important;
+                }}
+            }}
+        </style>
     </head>
-    <body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-        <table role="presentation" style="width: 100%; background-color: #0a0a0a; padding: 20px 0;">
+    <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" class="outer-wrapper" style="width: 100%; background-color: #f4f4f5; padding: 20px 0;">
             <tr>
                 <td align="center">
-                    <table role="presentation" style="width: 100%; max-width: 600px; background-color: #1a1a1a; border: 1px solid #333333; border-radius: 8px; overflow: hidden;">
+                    <table role="presentation" class="email-container" style="width: 100%; max-width: 600px; background-color: #ffffff; border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden;">
                         <!-- Header -->
                         <tr>
                             <td align="center" style="background: linear-gradient(135deg, #D4AF37 0%, #aa8c2f 100%); padding: 30px 20px;">
@@ -102,7 +151,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         <!-- Title -->
                         <tr>
                             <td align="center" style="padding: 30px 20px 10px 20px;">
-                                <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: bold;">{safe_title}</h1>
+                                <h1 class="email-title" style="color: #000000; font-size: 28px; margin: 0; font-weight: bold;">{safe_title}</h1>
                             </td>
                         </tr>
                         
@@ -117,16 +166,8 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         
                         <!-- Footer -->
                         <tr>
-                            <td style="padding: 30px 20px; border-top: 1px solid #333333; text-align: center;">
-                                <p style="color: #666666; font-size: 12px; margin: 0 0 15px 0;">
-                                    Follow us on social media
-                                </p>
-                                <div style="margin-bottom: 20px;">
-                                    <a href="#" style="display: inline-block; margin: 0 10px; color: #D4AF37; text-decoration: none; font-size: 14px;">Twitter</a>
-                                    <a href="#" style="display: inline-block; margin: 0 10px; color: #D4AF37; text-decoration: none; font-size: 14px;">Facebook</a>
-                                    <a href="#" style="display: inline-block; margin: 0 10px; color: #D4AF37; text-decoration: none; font-size: 14px;">Instagram</a>
-                                </div>
-                                <p style="color: #555555; font-size: 11px; margin: 0;">
+                            <td class="email-footer" style="padding: 30px 20px; border-top: 1px solid #e4e4e7; text-align: center;">
+                                <p style="color: #444444; font-size: 11px; margin: 0;">
                                     © 2026 Prime Meridian Markets. All rights reserved.
                                     <br>
                                     This is an automated message, please do not reply.
@@ -136,7 +177,7 @@ def create_email_template(title: str, code: str = None, message: str = None, val
                         
                         <!-- Disclaimer -->
                         <tr>
-                            <td style="padding: 20px 30px; background-color: #0f0f0f; border-top: 1px solid #333333;">
+                            <td class="email-disclaimer" style="padding: 20px 30px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
                                 <p style="color: #444444; font-size: 10px; margin: 0; line-height: 1.5;">
                                     <strong>Disclaimer:</strong> Digital asset prices are subject to high market risk and price volatility. The value of your investment may go down or up. Prime Meridian Markets is not responsible for any losses incurred.
                                 </p>

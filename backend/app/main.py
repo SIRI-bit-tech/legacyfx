@@ -67,6 +67,11 @@ async def lifespan(app: FastAPI):
     start_referral_scheduler()
     logger.info("Referral payout scheduler started")
     
+    # Start Deposit Earnings Scheduler
+    from app.tasks.deposit_earnings_scheduler import start_scheduler as start_deposit_earnings_scheduler
+    start_deposit_earnings_scheduler()
+    logger.info("Deposit earnings scheduler started")
+    
     # Start Price Broadcast Service
     from app.services.price_broadcast import price_broadcast_service
     await price_broadcast_service.start()

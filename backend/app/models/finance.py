@@ -52,6 +52,7 @@ class Deposit(Base):
     status = Column(Enum(DepositStatus), default=DepositStatus.PENDING)
     confirmed_at = Column(DateTime, nullable=True)
     proof_url = Column(String(255), nullable=True)
+    last_earning_payout_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Withdrawal(Base):

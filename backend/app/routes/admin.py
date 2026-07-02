@@ -218,6 +218,7 @@ async def approve_deposit(
     
     user.account_balance += usd_val
     user.trading_balance += usd_val
+    deposit.fiat_amount = usd_val
     
     # Record or Update Transaction
     tx_stmt = select(Transaction).where(
