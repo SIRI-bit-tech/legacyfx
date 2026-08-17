@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/admin/deposits', label: 'Deposits', icon: 'pi-arrow-down-left' },
   { href: '/admin/withdrawals', label: 'Withdrawals', icon: 'pi-arrow-up-right' },
   { href: '/admin/transactions', label: 'Transactions', icon: 'pi-list' },
+  { href: '/admin/generate-transaction', label: 'Generate Transaction', icon: 'pi-plus-circle' },
   { href: '/admin/assets', label: 'Assets & Prices', icon: 'pi-chart-bar' },
   { href: '/admin/deposit-addresses', label: 'Deposit Addresses', icon: 'pi-wallet' },
   { href: '/admin/orders', label: 'Pending Orders', icon: 'pi-receipt' },

@@ -139,3 +139,18 @@ export const adminSubscriptionsApi = {
   approve: (id: string, days: number = 30) => adminApi.post(`/admin/subscriptions/${id}/approve?days=${days}`),
   decline: (id: string) => adminApi.post(`/admin/subscriptions/${id}/decline`),
 };
+
+export const adminGenerateTransactionApi = {
+  generate: (body: {
+    user_id: string;
+    types: string[];
+    amount: number;
+    asset_symbol: string;
+    description?: string;
+  }) => adminApi.post<{
+    message: string;
+    transactions: any[];
+    new_account_balance: number;
+    new_trading_balance: number;
+  }>('/admin/generate-transaction', body),
+};

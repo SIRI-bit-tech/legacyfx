@@ -1012,3 +1012,95 @@ async def admin_close_position(
     
     await db.commit()
     return {"message": "Position force closed successfully", "pnl": pnl}
+
+
+class GenerateTransactionRequest(BaseModel):
+    user_id: str
+    types: List[str]  # List of: DEPOSIT, WITHDRAWAL, CREDIT, DEBIT
+    amount: float
+    asset_symbol: str = "USD"
+    description: Optional[str] = None
+
+@router.post("/generate-transaction")
+async def generate_transaction(
+    request: GenerateTransactionRequest,
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """Admin generates one or more transaction records for a user and adjusts their balance."""
+    # Validate user exists
+    stmt = select(User).where(User.id == request.user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if request.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+
+    valid_types = {"DEPOSIT", "WITHDRAWAL", "CREDIT", "DEBIT"}
+    invalid = set(request.types) - valid_types
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid type(s): {', '.join(invalid)}")
+
+    if not request.types:
+        raise HTTPException(status_code=400, detail="At least one transaction type is required")
+
+    created_transactions = []
+
+    for tx_type in request.types:
+        # Map CREDIT/DEBIT to existing TransactionType enum values
+        if tx_type in ("DEPOSIT", "CREDIT"):
+            db_type = TransactionType.DEPOSIT
+            balance_delta = request.amount
+        else:
+            db_type = TransactionType.WITHDRAWAL
+            balance_delta = -request.amount
+
+        # Build description
+        if request.description:
+            desc = request.description
+        else:
+            desc_map = {
+                "DEPOSIT": f"Deposit {request.asset_symbol}",
+                "WITHDRAWAL": f"Withdrawal {request.asset_symbol}",
+                "CREDIT": f"Account Credit {request.asset_symbol}",
+                "DEBIT": f"Account Debit {request.asset_symbol}",
+            }
+            desc = desc_map[tx_type]
+
+        txn = Transaction(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            type=db_type,
+            asset_symbol=request.asset_symbol.upper(),
+            amount=request.amount if balance_delta > 0 else -request.amount,
+            usd_amount=request.amount if request.asset_symbol.upper() == "USD" else None,
+            description=desc,
+            reference_id=None,
+            status="COMPLETED"
+        )
+        db.add(txn)
+
+        # Update user balances
+        user.account_balance = (user.account_balance or 0) + balance_delta
+        user.trading_balance = (user.trading_balance or 0) + balance_delta
+
+        created_transactions.append({
+            "id": txn.id,
+            "type": tx_type,
+            "amount": txn.amount,
+            "asset_symbol": txn.asset_symbol,
+            "description": txn.description,
+            "status": txn.status,
+        })
+
+    await db.commit()
+
+    return {
+        "message": f"{len(created_transactions)} transaction(s) generated successfully",
+        "transactions": created_transactions,
+        "new_account_balance": user.account_balance,
+        "new_trading_balance": user.trading_balance,
+    }
