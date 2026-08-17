@@ -34,27 +34,31 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    # Check if user already exists
-    stmt = select(User).where(User.email == register_data.email)
-    result = await db.execute(stmt)
-    existing_user = result.scalar_one_or_none()
-    
-    # GENERIC RESPONSE: Always return success to prevent user enumeration
-    success_response = {
-        "message": "Registration initiated. Please check your email for verification.",
-        "user_id": "pending",
-        "require_verification": True
-    }
+    # Check if email already registered
+    stmt_email = select(User).where(User.email == register_data.email)
+    result_email = await db.execute(stmt_email)
+    if result_email.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email address already exists. Please log in or use a different email."
+        )
 
-    if existing_user:
-        # Log the attempt for security auditing but return success
-        logger.info(f"Registration attempt for existing email: {register_data.email}")
-        return success_response
+    # Determine username
+    username = register_data.username or register_data.email.split('@')[0]
+    
+    # Check if username already taken
+    if username:
+        stmt_username = select(User).where(User.username == username)
+        result_username = await db.execute(stmt_username)
+        if result_username.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This username is already taken. Please choose a different username."
+            )
     
     # Generate verification code and referral code for new user
     verification_code = generate_otp()
     from app.services.referral_service import ReferralService
-    username = register_data.username or register_data.email.split('@')[0]
     new_referral_code = await ReferralService.generate_referral_code(username, db)
     
     # Create new user
@@ -81,8 +85,10 @@ async def register(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        logger.info(f"Concurrent registration attempt for existing email: {register_data.email}")
-        return success_response
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email or username already exists."
+        )
     
     # Process referral signup if referral code provided
     if register_data.referral_code:
