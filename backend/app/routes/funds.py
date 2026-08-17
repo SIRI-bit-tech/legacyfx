@@ -80,7 +80,8 @@ async def get_funds_summary(
         used_margin += pos.margin
 
     available = float(current_user.trading_balance or 0)
-    net_worth = available + unrealized_pnl
+    acc_equity = float(current_user.account_balance or 0)
+    net_worth = (acc_equity if acc_equity > 0 else available) + unrealized_pnl
     free_margin = available + unrealized_pnl - used_margin
     pnl_percent = (unrealized_pnl / available * 100) if available > 0 else 0.0
 

@@ -186,6 +186,74 @@ async def update_user_status(
     await db.commit()
     return {"message": f"User status updated to {user.status.value}", "status": user.status.value}
 
+class TopUpBalanceRequest(BaseModel):
+    amount: float
+    target: str = "both"  # "trading", "account", or "both"
+    mode: str = "add"      # "add" or "set"
+    description: Optional[str] = "Admin Balance Top Up"
+    asset_symbol: str = "USD"
+
+@router.patch("/users/{user_id}/balance")
+async def top_up_user_balance(
+    user_id: str,
+    request: TopUpBalanceRequest,
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """Admin tops up or adjusts a user's trading balance and/or account equity."""
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target = request.target.lower().strip()
+    mode = request.mode.lower().strip()
+
+    # Mapping:
+    # "trading" in Admin UI updates user.account_balance (which controls Net Worth on User Dashboard)
+    # "account" in Admin UI updates user.trading_balance (which controls Trading Balance / Available on User Side)
+    # "both" updates both balances
+    if mode == "add":
+        if target in ("trading", "both"):
+            user.account_balance = (user.account_balance or 0.0) + request.amount
+        if target in ("account", "both"):
+            user.trading_balance = (user.trading_balance or 0.0) + request.amount
+        delta = request.amount
+    elif mode == "set":
+        if target in ("trading", "both"):
+            user.account_balance = request.amount
+        if target in ("account", "both"):
+            user.trading_balance = request.amount
+        delta = request.amount
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mode. Use 'add' or 'set'.")
+
+    # Record a transaction entry for auditing
+    txn = Transaction(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        type=TransactionType.DEPOSIT if delta >= 0 else TransactionType.WITHDRAWAL,
+        asset_symbol=request.asset_symbol.upper(),
+        amount=delta,
+        usd_amount=abs(delta),
+        description=request.description or "Admin Balance Adjustment",
+        reference_id=None,
+        status="COMPLETED"
+    )
+    db.add(txn)
+
+    # Note: No user notification sent as requested.
+
+    await db.commit()
+
+    return {
+        "message": f"Successfully updated balance for user {user.email}",
+        "trading_balance": user.trading_balance,
+        "account_balance": user.account_balance,
+    }
+
 @router.get("/kyc/pending")
 async def list_pending_kyc(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
     """List all users with pending KYC verification."""

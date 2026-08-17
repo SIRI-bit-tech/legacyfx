@@ -86,6 +86,8 @@ export const adminUsersApi = {
   ),
   updateStatus: (id: string, status: string) =>
     adminApi.patch(`/admin/users/${id}/status`, { status }),
+  topUpBalance: (id: string, body: { amount: number; target?: string; mode?: string; description?: string; asset_symbol?: string }) =>
+    adminApi.patch<{ message: string; trading_balance: number; account_balance: number }>(`/admin/users/${id}/balance`, body),
 };
 
 export const adminDepositsApi = {

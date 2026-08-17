@@ -11,7 +11,7 @@ import { UserDrawer } from '@/components/admin/UserDrawer';
 import { useAdminUsers } from '@/hooks/admin/useAdminUsers';
 
 export default function AdminUsersPage() {
-  const { users, loading, filters, setFilters, updateStatus } = useAdminUsers();
+  const { users, loading, filters, setFilters, updateStatus, refresh } = useAdminUsers();
   const [selectedUser, setSelectedUser] = useState<any>(null);
 
   const filterFields: FilterField[] = [
@@ -95,6 +95,7 @@ export default function AdminUsersPage() {
           isOpen={!!selectedUser}
           onClose={() => setSelectedUser(null)}
           onUpdateStatus={updateStatus}
+          onRefresh={refresh}
         />
       </AdminLayout>
     </AdminAuthGuard>
