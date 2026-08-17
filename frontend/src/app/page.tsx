@@ -6,7 +6,6 @@ import Hero from '../components/landing/Hero';
 import MarketOverview from '../components/landing/MarketOverview';
 import Stats from '../components/landing/Stats';
 import InstitutionalGrade from '../components/landing/InstitutionalGrade';
-import MobileApp from '../components/landing/MobileApp';
 import Footer from '../components/landing/Footer';
 import SocialProof from '../components/landing/SocialProof';
 
@@ -32,9 +31,6 @@ export default function Home() {
 
         {/* Institutional-grade features and services */}
         <InstitutionalGrade />
-
-        {/* Mobile ecosystem presentation */}
-        <MobileApp />
 
         {/* Final CTA and Global Footer */}
         <section className="py-32 bg-gradient-to-b from-transparent to-color-primary/10">
