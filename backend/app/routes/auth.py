@@ -140,18 +140,16 @@ async def verify_email(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=generic_error)
         
     user.email_verified = True
-    user.status = UserStatus.ACTIVE
+    user.status = UserStatus.PENDING_VERIFICATION
     user.email_verification_token = None
     user.email_verification_expires_at = None
     
     await db.commit()
     
-    access_token = create_access_token(data={"sub": user.id})
-    
     return {
-        "message": "Email verified successfully",
-        "access_token": access_token,
-        "user_id": user.id
+        "message": "Email verified successfully. Account registration is undergoing compliance review.",
+        "user_id": user.id,
+        "requires_approval": True
     }
 
 @router.post("/login", response_model=TokenResponse)
@@ -183,10 +181,23 @@ async def login(
             detail="Invalid email or password"
         )
     
-    if user.status == "SUSPENDED":
+    user_status_str = user.status.value if hasattr(user.status, 'value') else str(user.status)
+    if user_status_str == "PENDING_VERIFICATION":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is suspended"
+            detail="Your account is undergoing account verification (takes 24-48 hours). You will receive an email once approved."
+        )
+    
+    if user_status_str == "SUSPENDED":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is suspended. Please contact support."
+        )
+
+    if user_status_str != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not active. Please contact support."
         )
     
     user.failed_login_attempts = 0

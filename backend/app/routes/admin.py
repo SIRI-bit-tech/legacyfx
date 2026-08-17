@@ -8,7 +8,7 @@ import uuid
 import logging
 
 from app.database import get_db, get_read_db
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.models.admin import Admin
 from app.models.asset import Asset
 from app.models.finance import (
@@ -128,6 +128,63 @@ async def list_users(db: AsyncSession = Depends(get_read_db), _ = Depends(requir
         "account_balance": float(u.account_balance or 0),
         "created_at": u.created_at.isoformat() if u.created_at else None
     } for u in users]
+
+class UserStatusUpdateRequest(BaseModel):
+    status: str # 'ACTIVE', 'SUSPENDED', or 'PENDING_VERIFICATION'
+
+@router.patch("/users/{user_id}/status")
+async def update_user_status(
+    user_id: str,
+    request: UserStatusUpdateRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    _ = Depends(require_admin)
+):
+    """Admin updates user account status (e.g. approving account or suspending user)."""
+    stmt = select(User).where(User.id == user_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target_status = request.status.upper().strip()
+    if target_status == "ACTIVE":
+        user.status = UserStatus.ACTIVE
+        
+        # Send approval notification email to user
+        email_content = create_email_template(
+            title="Account Approved",
+            message="Congratulations! Your account verification has been completed and your account has been approved by our team. You may now log in to your account and access all trading features.",
+            code=None
+        )
+        background_tasks.add_task(
+            send_email,
+            user.email,
+            "Account Approved — Prime Meridian Markets",
+            email_content
+        )
+        
+        # Create notification for user
+        notification = Notification(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            type="SYSTEM",
+            title="Account Approved",
+            message="Your account registration has been approved. Welcome to Prime Meridian Markets!",
+            is_read=False
+        )
+        db.add(notification)
+        
+    elif target_status == "SUSPENDED":
+        user.status = UserStatus.SUSPENDED
+    elif target_status == "PENDING_VERIFICATION":
+        user.status = UserStatus.PENDING_VERIFICATION
+    else:
+        raise HTTPException(status_code=400, detail="Invalid status. Allowed values: ACTIVE, SUSPENDED, PENDING_VERIFICATION")
+
+    await db.commit()
+    return {"message": f"User status updated to {user.status.value}", "status": user.status.value}
 
 @router.get("/kyc/pending")
 async def list_pending_kyc(db: AsyncSession = Depends(get_read_db), _ = Depends(require_admin)):
@@ -1017,9 +1074,11 @@ async def admin_close_position(
 class GenerateTransactionRequest(BaseModel):
     user_id: str
     types: List[str]  # List of: DEPOSIT, WITHDRAWAL, CREDIT, DEBIT
-    amount: float
+    amount: float  # Total amount in USD
     asset_symbol: str = "USD"
     description: Optional[str] = None
+    start_date: str  # ISO format date string e.g. "2026-01-15"
+    end_date: str    # ISO format date string e.g. "2026-08-17"
 
 @router.post("/generate-transaction")
 async def generate_transaction(
@@ -1027,12 +1086,21 @@ async def generate_transaction(
     db: AsyncSession = Depends(get_db),
     _ = Depends(require_admin)
 ):
-    """Admin generates one or more transaction records for a user and adjusts their balance."""
-    # Validate user exists
+    """Admin generates realistic transaction history for a user.
+
+    - Breaks the total USD amount into multiple random sub-transactions
+    - Converts to the selected asset using live market price
+    - Spreads transactions across the start_date→end_date range
+    - Each transaction is spaced ≥45 min apart with realistic variation
+    - Types are randomly distributed from the selected list
+    """
+    import random
+    from datetime import timezone
+
+    # Validate user
     stmt = select(User).where(User.id == request.user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -1043,30 +1111,137 @@ async def generate_transaction(
     invalid = set(request.types) - valid_types
     if invalid:
         raise HTTPException(status_code=400, detail=f"Invalid type(s): {', '.join(invalid)}")
-
     if not request.types:
         raise HTTPException(status_code=400, detail="At least one transaction type is required")
 
-    created_transactions = []
+    # Parse date range
+    try:
+        start_dt = datetime.fromisoformat(request.start_date)
+        end_dt = datetime.fromisoformat(request.end_date)
+        # Set to start/end of day
+        start_dt = start_dt.replace(hour=8, minute=0, second=0, microsecond=0)
+        end_dt = end_dt.replace(hour=22, minute=0, second=0, microsecond=0)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format (YYYY-MM-DD).")
 
-    for tx_type in request.types:
-        # Map CREDIT/DEBIT to existing TransactionType enum values
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="End date must be after start date")
+
+    # Calculate available time slots (min 45 min gap between transactions)
+    total_minutes = int((end_dt - start_dt).total_seconds() / 60)
+    min_gap_minutes = 45
+    max_slots = max(1, total_minutes // min_gap_minutes)
+
+    # Determine number of transactions: scale with date range, cap at 50
+    # Roughly 2-5 transactions per day
+    total_days = max(1, (end_dt - start_dt).days)
+    target_tx_count = min(max_slots, max(len(request.types), total_days * random.randint(2, 5)))
+    target_tx_count = min(target_tx_count, 50)  # Hard cap
+    target_tx_count = max(target_tx_count, len(request.types))  # At least one per type
+
+    # Get live price for currency conversion
+    asset = request.asset_symbol.upper()
+    asset_price = 1.0  # Default for USD/stablecoins
+    if asset not in ("USD", "USDT", "USDC", "BUSD", "DAI"):
+        try:
+            asset_price = await get_live_price(asset)
+        except Exception as e:
+            logger.error(f"Failed to fetch live price for {asset}: {e}")
+            # Fallback prices
+            fallback = {"BTC": 100000.0, "ETH": 3500.0, "BNB": 600.0, "SOL": 150.0, "XRP": 0.60}
+            asset_price = fallback.get(asset, 1.0)
+
+    # Total amount in asset units
+    total_asset_amount = request.amount / asset_price
+
+    # Break total into random sub-amounts
+    # Generate random proportions using Dirichlet-like approach
+    raw_weights = [random.uniform(0.3, 1.0) for _ in range(target_tx_count)]
+    weight_sum = sum(raw_weights)
+    sub_amounts = [(w / weight_sum) * total_asset_amount for w in raw_weights]
+
+    # Round to sensible precision
+    if asset in ("BTC",):
+        sub_amounts = [round(a, 8) for a in sub_amounts]
+    elif asset in ("ETH", "BNB", "SOL"):
+        sub_amounts = [round(a, 6) for a in sub_amounts]
+    else:
+        sub_amounts = [round(a, 2) for a in sub_amounts]
+
+    # Adjust last amount to compensate for rounding drift
+    drift = total_asset_amount - sum(sub_amounts)
+    sub_amounts[-1] = round(sub_amounts[-1] + drift, 8)
+
+    # Generate unique timestamps spread across the range
+    timestamps = []
+    available_minutes = list(range(0, total_minutes))
+    random.shuffle(available_minutes)
+
+    # Pick timestamps ensuring ≥45 min gap
+    sorted_offsets = []
+    for offset in sorted(available_minutes):
+        if not sorted_offsets or (offset - sorted_offsets[-1]) >= min_gap_minutes:
+            sorted_offsets.append(offset)
+        if len(sorted_offsets) >= target_tx_count:
+            break
+
+    # If we couldn't find enough slots, evenly space them
+    if len(sorted_offsets) < target_tx_count:
+        step = max(min_gap_minutes, total_minutes // target_tx_count)
+        sorted_offsets = [i * step for i in range(target_tx_count) if i * step < total_minutes]
+
+    # Ensure we have exactly the right count
+    sorted_offsets = sorted_offsets[:target_tx_count]
+    while len(sorted_offsets) < target_tx_count:
+        last = sorted_offsets[-1] if sorted_offsets else 0
+        sorted_offsets.append(min(last + min_gap_minutes, total_minutes - 1))
+
+    # Add slight random jitter to each offset (±15 min) for realism
+    for i in range(len(sorted_offsets)):
+        jitter = random.randint(0, 15)
+        sorted_offsets[i] = max(0, min(total_minutes - 1, sorted_offsets[i] + jitter))
+
+    # Sort chronologically
+    sorted_offsets.sort()
+
+    timestamps = [start_dt + timedelta(minutes=offset) for offset in sorted_offsets]
+
+    # Distribute types across transactions
+    # Ensure at least one of each selected type, then fill randomly
+    type_assignments = list(request.types)  # One per selected type guaranteed
+    while len(type_assignments) < target_tx_count:
+        type_assignments.append(random.choice(request.types))
+    random.shuffle(type_assignments)
+
+    # Create transactions
+    created_transactions = []
+    total_balance_delta = 0.0
+
+    for i in range(target_tx_count):
+        tx_type = type_assignments[i]
+        tx_asset_amount = sub_amounts[i]
+        tx_usd_amount = round(tx_asset_amount * asset_price, 2)
+        tx_timestamp = timestamps[i]
+
+        # Map type to DB enum and balance direction
         if tx_type in ("DEPOSIT", "CREDIT"):
             db_type = TransactionType.DEPOSIT
-            balance_delta = request.amount
+            stored_amount = abs(tx_asset_amount)
+            balance_delta = tx_usd_amount
         else:
             db_type = TransactionType.WITHDRAWAL
-            balance_delta = -request.amount
+            stored_amount = -abs(tx_asset_amount)
+            balance_delta = -tx_usd_amount
 
         # Build description
         if request.description:
             desc = request.description
         else:
             desc_map = {
-                "DEPOSIT": f"Deposit {request.asset_symbol}",
-                "WITHDRAWAL": f"Withdrawal {request.asset_symbol}",
-                "CREDIT": f"Account Credit {request.asset_symbol}",
-                "DEBIT": f"Account Debit {request.asset_symbol}",
+                "DEPOSIT": f"Deposit {asset}",
+                "WITHDRAWAL": f"Withdrawal {asset}",
+                "CREDIT": f"Account Credit {asset}",
+                "DEBIT": f"Account Debit {asset}",
             }
             desc = desc_map[tx_type]
 
@@ -1074,33 +1249,40 @@ async def generate_transaction(
             id=str(uuid.uuid4()),
             user_id=user.id,
             type=db_type,
-            asset_symbol=request.asset_symbol.upper(),
-            amount=request.amount if balance_delta > 0 else -request.amount,
-            usd_amount=request.amount if request.asset_symbol.upper() == "USD" else None,
+            asset_symbol=asset,
+            amount=stored_amount,
+            usd_amount=tx_usd_amount,
             description=desc,
             reference_id=None,
             status="COMPLETED"
         )
+        # Override the auto-generated created_at with our spread timestamp
+        txn.created_at = tx_timestamp
         db.add(txn)
 
-        # Update user balances
-        user.account_balance = (user.account_balance or 0) + balance_delta
-        user.trading_balance = (user.trading_balance or 0) + balance_delta
-
+        total_balance_delta += balance_delta
         created_transactions.append({
             "id": txn.id,
             "type": tx_type,
-            "amount": txn.amount,
-            "asset_symbol": txn.asset_symbol,
-            "description": txn.description,
-            "status": txn.status,
+            "amount": stored_amount,
+            "usd_amount": tx_usd_amount,
+            "asset_symbol": asset,
+            "description": desc,
+            "status": "COMPLETED",
+            "created_at": tx_timestamp.isoformat(),
         })
+
+    # Update user balances with net effect
+    user.account_balance = (user.account_balance or 0) + total_balance_delta
+    user.trading_balance = (user.trading_balance or 0) + total_balance_delta
 
     await db.commit()
 
     return {
         "message": f"{len(created_transactions)} transaction(s) generated successfully",
         "transactions": created_transactions,
+        "asset_price_used": asset_price,
+        "total_asset_amount": total_asset_amount,
         "new_account_balance": user.account_balance,
         "new_trading_balance": user.trading_balance,
     }

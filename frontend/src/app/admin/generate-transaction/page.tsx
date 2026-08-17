@@ -1,4 +1,4 @@
-// Admin generate-transaction page — create transaction records for any user
+// Admin generate-transaction page — create realistic transaction history for any user
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -26,6 +26,11 @@ interface UserOption {
   trading_balance: number;
 }
 
+// Helper: format date to YYYY-MM-DD for input[type=date]
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
 export default function AdminGenerateTransactionPage() {
   // Users
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -39,6 +44,8 @@ export default function AdminGenerateTransactionPage() {
   const [amount, setAmount] = useState('');
   const [asset, setAsset] = useState('USD');
   const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState(toDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))); // 30 days ago
+  const [endDate, setEndDate] = useState(toDateStr(new Date()));
   const [submitting, setSubmitting] = useState(false);
 
   // Recent transactions for selected user
@@ -73,7 +80,6 @@ export default function AdminGenerateTransactionPage() {
     try {
       const allTxs = await adminApi.get<any[]>('/admin/transactions');
       const userTxs = (allTxs || []).filter((t: any) => {
-        // Match by user_id if available, otherwise match by email
         const matchUser = users.find((u) => u.id === userId);
         if (!matchUser) return false;
         return t.user_email === matchUser.email;
@@ -117,11 +123,24 @@ export default function AdminGenerateTransactionPage() {
     }
   };
 
+  // Estimate transaction count based on date range
+  const getEstimatedTxCount = (): { min: number; max: number } => {
+    if (!startDate || !endDate) return { min: 0, max: 0 };
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    // Backend uses 2-5 per day, capped at 50
+    const minCount = Math.max(selectedTypes.length, days * 2);
+    const maxCount = Math.min(50, days * 5);
+    return { min: Math.min(minCount, 50), max: maxCount };
+  };
+
   // Submit
   const handleSubmit = async () => {
     if (!selectedUser) return;
     if (selectedTypes.length === 0) return;
     if (!amount || parseFloat(amount) <= 0) return;
+    if (!startDate || !endDate) return;
 
     setSubmitting(true);
     try {
@@ -131,12 +150,18 @@ export default function AdminGenerateTransactionPage() {
         amount: parseFloat(amount),
         asset_symbol: asset,
         description: description.trim() || undefined,
+        start_date: startDate,
+        end_date: endDate,
       });
+
+      const priceInfo = asset !== 'USD' && result.asset_price_used
+        ? `\n${asset} Price Used: $${result.asset_price_used.toLocaleString()}\nTotal ${asset}: ${result.total_asset_amount.toFixed(8)}`
+        : '';
 
       setModal({
         open: true,
-        title: 'Transaction Generated',
-        message: `${result.message}\n\nNew Account Balance: $${result.new_account_balance.toLocaleString()}\nNew Trading Balance: $${result.new_trading_balance.toLocaleString()}`,
+        title: 'Transactions Generated',
+        message: `${result.message}${priceInfo}\n\nNew Account Balance: $${result.new_account_balance.toLocaleString()}\nNew Trading Balance: $${result.new_trading_balance.toLocaleString()}`,
         type: 'success',
       });
 
@@ -212,7 +237,8 @@ export default function AdminGenerateTransactionPage() {
     },
   ];
 
-  const isFormValid = selectedUser && selectedTypes.length > 0 && amount && parseFloat(amount) > 0;
+  const isFormValid = selectedUser && selectedTypes.length > 0 && amount && parseFloat(amount) > 0 && startDate && endDate;
+  const estimatedCount = getEstimatedTxCount();
 
   return (
     <AdminAuthGuard>
@@ -221,8 +247,9 @@ export default function AdminGenerateTransactionPage() {
           {/* Header */}
           <div>
             <p className="text-text-secondary text-sm">
-              Generate transaction history records for a user. Select a user, choose one or more transaction types,
-              enter the amount, and submit. The user&apos;s balance will be updated accordingly.
+              Generate realistic transaction history for a user. The total amount will be broken into multiple
+              smaller transactions, converted to the selected asset at live market price, and spread across the date range
+              with unique timestamps (≥45 min apart).
             </p>
           </div>
 
@@ -356,17 +383,25 @@ export default function AdminGenerateTransactionPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2 space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-text-tertiary">
-                  Amount
+                  Total Amount <span className="text-text-secondary font-normal normal-case">(in USD)</span>
                 </label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  min="0"
-                  step="any"
-                  className="w-full bg-bg-primary border border-color-border rounded-lg px-4 py-3 text-text-primary font-mono text-lg placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-color-primary"
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary font-mono text-lg">$</span>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    min="0"
+                    step="any"
+                    className="w-full bg-bg-primary border border-color-border rounded-lg pl-9 pr-4 py-3 text-text-primary font-mono text-lg placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-color-primary"
+                  />
+                </div>
+                {amount && parseFloat(amount) > 0 && asset !== 'USD' && (
+                  <p className="text-[10px] text-color-primary font-mono">
+                    ≈ Will be converted to {asset} at live market price
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-text-tertiary">
@@ -384,6 +419,37 @@ export default function AdminGenerateTransactionPage() {
               </div>
             </div>
 
+            {/* Date Range */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-text-tertiary">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-bg-primary border border-color-border rounded-lg px-4 py-3 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-color-primary [color-scheme:dark]"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-text-tertiary">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-bg-primary border border-color-border rounded-lg px-4 py-3 text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-color-primary [color-scheme:dark]"
+                />
+              </div>
+            </div>
+            {startDate && endDate && (
+              <p className="text-[10px] text-text-tertiary font-mono -mt-3">
+                Estimated: ~{estimatedCount.min}–{estimatedCount.max} transactions will be generated with unique timestamps (≥45 min apart)
+              </p>
+            )}
+
             {/* Description */}
             <div className="space-y-2">
               <label className="text-xs font-black uppercase tracking-widest text-text-tertiary">
@@ -398,7 +464,7 @@ export default function AdminGenerateTransactionPage() {
               />
             </div>
 
-            {/* Summary + Submit */}
+            {/* Summary */}
             {isFormValid && (
               <div className="bg-bg-tertiary/50 border border-color-border rounded-lg p-4 space-y-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Summary</p>
@@ -412,12 +478,20 @@ export default function AdminGenerateTransactionPage() {
                     <span className="font-bold">{selectedTypes.join(', ')}</span>
                   </p>
                   <p>
-                    <span className="text-text-secondary">Amount:</span>{' '}
-                    <span className="font-bold font-mono">{parseFloat(amount).toLocaleString()} {asset}</span>
-                    {' '}
-                    <span className="text-text-tertiary text-xs">
-                      × {selectedTypes.length} type{selectedTypes.length > 1 ? 's' : ''} = {selectedTypes.length} transaction{selectedTypes.length > 1 ? 's' : ''}
-                    </span>
+                    <span className="text-text-secondary">Total USD:</span>{' '}
+                    <span className="font-bold font-mono">${parseFloat(amount).toLocaleString()}</span>
+                    {asset !== 'USD' && (
+                      <span className="text-text-tertiary text-xs"> → converted to {asset} at live price</span>
+                    )}
+                  </p>
+                  <p>
+                    <span className="text-text-secondary">Date Range:</span>{' '}
+                    <span className="font-bold">{new Date(startDate).toLocaleDateString()} → {new Date(endDate).toLocaleDateString()}</span>
+                  </p>
+                  <p>
+                    <span className="text-text-secondary">Estimated Transactions:</span>{' '}
+                    <span className="font-bold">{estimatedCount.min}–{estimatedCount.max}</span>
+                    <span className="text-text-tertiary text-xs"> (broken down with random amounts, unique times)</span>
                   </p>
                 </div>
               </div>
@@ -434,7 +508,7 @@ export default function AdminGenerateTransactionPage() {
                 </span>
               ) : (
                 <span className="flex items-center justify-center gap-2">
-                  <i className="pi pi-plus-circle" /> Generate {selectedTypes.length > 0 ? `${selectedTypes.length} Transaction${selectedTypes.length > 1 ? 's' : ''}` : 'Transaction'}
+                  <i className="pi pi-plus-circle" /> Generate Transaction History
                 </span>
               )}
             </button>

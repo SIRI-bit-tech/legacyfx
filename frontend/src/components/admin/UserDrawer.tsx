@@ -65,20 +65,30 @@ export function UserDrawer({
         {/* Actions */}
         <div className="pt-4 border-t border-color-border space-y-3">
           <p className="text-[10px] text-text-tertiary uppercase font-black mb-1">Administrative Actions</p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={() => onUpdateStatus(user.id, isSuspended ? 'active' : 'suspended')}
-              className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${
-                isSuspended
-                  ? 'bg-color-success text-bg-primary hover:bg-color-success/90'
-                  : 'bg-color-danger/10 text-color-danger border border-color-danger/30 hover:bg-color-danger/20'
-              }`}
-            >
-              {isSuspended ? 'Lift Suspension' : 'Suspend Account'}
-            </button>
-            <button className="flex-1 py-2 rounded-lg bg-bg-tertiary text-text-primary text-sm font-bold hover:bg-bg-elevated transition border border-color-border">
-              Reset Password
-            </button>
+          <div className="flex flex-col gap-2">
+            {user.status?.toUpperCase() !== 'ACTIVE' && (
+              <button
+                onClick={() => onUpdateStatus(user.id, 'ACTIVE')}
+                className="w-full py-2.5 rounded-lg bg-color-success text-bg-primary font-bold text-sm hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg shadow-color-success/20"
+              >
+                <i className="pi pi-check-circle" /> Approve Account & Send Welcome Email
+              </button>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={() => onUpdateStatus(user.id, isSuspended ? 'ACTIVE' : 'SUSPENDED')}
+                className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${
+                  isSuspended
+                    ? 'bg-color-success text-bg-primary hover:bg-color-success/90'
+                    : 'bg-color-danger/10 text-color-danger border border-color-danger/30 hover:bg-color-danger/20'
+                }`}
+              >
+                {isSuspended ? 'Lift Suspension' : 'Suspend Account'}
+              </button>
+              <button className="flex-1 py-2 rounded-lg bg-bg-tertiary text-text-primary text-sm font-bold hover:bg-bg-elevated transition border border-color-border">
+                Reset Password
+              </button>
+            </div>
           </div>
         </div>
       </div>

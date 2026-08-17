@@ -70,24 +70,12 @@ function VerifyEmailContent() {
     setLoading(true);
 
     try {
-      const response: any = await api.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, {
+      await api.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, {
         email,
         code: fullCode,
       });
-      
-      // Store token if returned and update API client state
-      if (response.access_token) {
-        api.setToken(response.access_token);
-        // Set cookie for server-side components (like UploadThing)
-        if (typeof document !== 'undefined') {
-          document.cookie = `access_token=${response.access_token}; path=/; max-age=86400; SameSite=Lax`;
-        }
-      }
 
       setSuccess(true);
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 2000);
     } catch (err: any) {
       setError(err.message || 'Verification failed. Please check your code.');
     } finally {
@@ -97,10 +85,33 @@ function VerifyEmailContent() {
 
   if (success) {
     return (
-      <div className="bg-bg-secondary border border-color-success rounded-lg p-8 text-center max-w-md w-full">
-        <h2 className="text-color-success text-2xl font-bold mb-2">Verified!</h2>
-        <p className="text-text-secondary mb-4">Your email has been confirmed. Welcome to Prime Meridian Markets.</p>
-        <p className="text-text-tertiary text-sm">Redirecting to dashboard...</p>
+      <div className="bg-bg-secondary border border-color-primary/30 rounded-xl p-8 text-center max-w-md w-full shadow-2xl space-y-6">
+        <div className="w-16 h-16 rounded-full bg-color-primary/10 border border-color-primary/20 flex items-center justify-center mx-auto text-color-primary text-3xl">
+          <i className="pi pi-clock" />
+        </div>
+        <div>
+          <h2 className="text-text-primary text-2xl font-black mb-2">Email Confirmed</h2>
+          <p className="text-text-secondary text-sm leading-relaxed mb-4">
+            Your email address has been successfully verified.
+          </p>
+          <div className="bg-bg-tertiary/60 border border-color-border p-4 rounded-lg text-left text-xs space-y-2">
+            <p className="text-color-primary font-bold flex items-center gap-1.5">
+              <i className="pi pi-shield text-xs" /> Account Verification in Progress
+            </p>
+            <p className="text-text-secondary leading-relaxed">
+              Your account registration is currently undergoing standard compliance verification (which takes 24–48 hours).
+            </p>
+            <p className="text-text-tertiary">
+              An email notification will be sent to your inbox once your account has been approved and activated.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/login"
+          className="block w-full bg-color-primary hover:bg-color-primary-hover text-bg-primary font-bold py-3 rounded-lg text-sm transition-all"
+        >
+          Return to Login
+        </Link>
       </div>
     );
   }

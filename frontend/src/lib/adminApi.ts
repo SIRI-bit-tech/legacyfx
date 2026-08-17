@@ -147,10 +147,15 @@ export const adminGenerateTransactionApi = {
     amount: number;
     asset_symbol: string;
     description?: string;
+    start_date: string;
+    end_date: string;
   }) => adminApi.post<{
     message: string;
     transactions: any[];
+    asset_price_used: number;
+    total_asset_amount: number;
     new_account_balance: number;
     new_trading_balance: number;
   }>('/admin/generate-transaction', body),
 };
+
