@@ -10,8 +10,11 @@ import { MessageModal } from '@/components/admin/AdminModal';
 import { adminApi, adminGenerateTransactionApi } from '@/lib/adminApi';
 
 const TX_TYPES = [
+  { label: 'Daily Earnings', value: 'EARNINGS' },
   { label: 'Deposit', value: 'DEPOSIT' },
   { label: 'Withdrawal', value: 'WITHDRAWAL' },
+  { label: 'Staking Reward', value: 'STAKING_REWARD' },
+  { label: 'Mining Reward', value: 'MINING_REWARD' },
   { label: 'Credit', value: 'CREDIT' },
   { label: 'Debit', value: 'DEBIT' },
 ];
@@ -355,6 +358,9 @@ export default function AdminGenerateTransactionPage() {
                   const colorMap: Record<string, string> = {
                     DEPOSIT: 'border-color-success/40 bg-color-success/5 text-color-success',
                     WITHDRAWAL: 'border-color-danger/40 bg-color-danger/5 text-color-danger',
+                    EARNINGS: 'border-color-success/40 bg-color-success/5 text-color-success',
+                    STAKING_REWARD: 'border-color-primary/40 bg-color-primary/5 text-color-primary',
+                    MINING_REWARD: 'border-color-primary/40 bg-color-primary/5 text-color-primary',
                     CREDIT: 'border-color-primary/40 bg-color-primary/5 text-color-primary',
                     DEBIT: 'border-color-warning/40 bg-color-warning/5 text-color-warning',
                   };

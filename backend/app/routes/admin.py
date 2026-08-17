@@ -1073,11 +1073,11 @@ async def admin_close_position(
 
 class GenerateTransactionRequest(BaseModel):
     user_id: str
-    types: List[str]  # List of: DEPOSIT, WITHDRAWAL, CREDIT, DEBIT
+    types: List[str]  # List of: DEPOSIT, WITHDRAWAL, EARNINGS, STAKING_REWARD, MINING_REWARD, CREDIT, DEBIT
     amount: float  # Total amount in USD
     asset_symbol: str = "USD"
     description: Optional[str] = None
-    start_date: str  # ISO format date string e.g. "2026-01-15"
+    start_date: str  # ISO format date string e.g. "2026-07-06"
     end_date: str    # ISO format date string e.g. "2026-08-17"
 
 @router.post("/generate-transaction")
@@ -1086,16 +1086,15 @@ async def generate_transaction(
     db: AsyncSession = Depends(get_db),
     _ = Depends(require_admin)
 ):
-    """Admin generates realistic transaction history for a user.
+    """Admin generates realistic daily transaction history for a user.
 
-    - Breaks the total USD amount into multiple random sub-transactions
+    - Spreads 1 transaction per day across the start_date -> end_date range
+    - Breaks the total USD amount across all daily transactions
     - Converts to the selected asset using live market price
-    - Spreads transactions across the start_date→end_date range
-    - Each transaction is spaced ≥45 min apart with realistic variation
-    - Types are randomly distributed from the selected list
+    - Assigns realistic daily timestamps (random time each day)
+    - Supports EARNINGS, MINING_REWARD, STAKING_REWARD, DEPOSIT, WITHDRAWAL, CREDIT, DEBIT
     """
     import random
-    from datetime import timezone
 
     # Validate user
     stmt = select(User).where(User.id == request.user_id)
@@ -1107,7 +1106,7 @@ async def generate_transaction(
     if request.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
-    valid_types = {"DEPOSIT", "WITHDRAWAL", "CREDIT", "DEBIT"}
+    valid_types = {"DEPOSIT", "WITHDRAWAL", "EARNINGS", "STAKING_REWARD", "MINING_REWARD", "CREDIT", "DEBIT"}
     invalid = set(request.types) - valid_types
     if invalid:
         raise HTTPException(status_code=400, detail=f"Invalid type(s): {', '.join(invalid)}")
@@ -1118,26 +1117,35 @@ async def generate_transaction(
     try:
         start_dt = datetime.fromisoformat(request.start_date)
         end_dt = datetime.fromisoformat(request.end_date)
-        # Set to start/end of day
-        start_dt = start_dt.replace(hour=8, minute=0, second=0, microsecond=0)
-        end_dt = end_dt.replace(hour=22, minute=0, second=0, microsecond=0)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format (YYYY-MM-DD).")
 
-    if end_dt <= start_dt:
-        raise HTTPException(status_code=400, detail="End date must be after start date")
+    if end_dt < start_dt:
+        raise HTTPException(status_code=400, detail="End date must be after or equal to start date")
 
-    # Calculate available time slots (min 45 min gap between transactions)
-    total_minutes = int((end_dt - start_dt).total_seconds() / 60)
-    min_gap_minutes = 45
-    max_slots = max(1, total_minutes // min_gap_minutes)
+    # Calculate days in range (inclusive)
+    total_days = max(1, (end_dt.date() - start_dt.date()).days + 1)
+    
+    # Cap total transactions at 60 max, minimum 1 per day or length of selected types
+    target_tx_count = min(total_days, 60)
+    target_tx_count = max(target_tx_count, len(request.types))
 
-    # Determine number of transactions: scale with date range, cap at 50
-    # Roughly 2-5 transactions per day
-    total_days = max(1, (end_dt - start_dt).days)
-    target_tx_count = min(max_slots, max(len(request.types), total_days * random.randint(2, 5)))
-    target_tx_count = min(target_tx_count, 50)  # Hard cap
-    target_tx_count = max(target_tx_count, len(request.types))  # At least one per type
+    # Evenly pick distinct days across the range
+    days_list = [start_dt + timedelta(days=i) for i in range(total_days)]
+    if len(days_list) > target_tx_count:
+        step = len(days_list) / target_tx_count
+        selected_days = [days_list[int(i * step)] for i in range(target_tx_count)]
+    else:
+        selected_days = days_list
+
+    # Generate 1 realistic timestamp per selected day (random hour between 08:00 and 22:00)
+    timestamps = []
+    for d in selected_days:
+        random_hour = random.randint(8, 22)
+        random_minute = random.randint(0, 59)
+        random_second = random.randint(0, 59)
+        timestamps.append(d.replace(hour=random_hour, minute=random_minute, second=random_second))
+    timestamps.sort()
 
     # Get live price for currency conversion
     asset = request.asset_symbol.upper()
@@ -1147,7 +1155,6 @@ async def generate_transaction(
             asset_price = await get_live_price(asset)
         except Exception as e:
             logger.error(f"Failed to fetch live price for {asset}: {e}")
-            # Fallback prices
             fallback = {"BTC": 100000.0, "ETH": 3500.0, "BNB": 600.0, "SOL": 150.0, "XRP": 0.60}
             asset_price = fallback.get(asset, 1.0)
 
@@ -1155,8 +1162,7 @@ async def generate_transaction(
     total_asset_amount = request.amount / asset_price
 
     # Break total into random sub-amounts
-    # Generate random proportions using Dirichlet-like approach
-    raw_weights = [random.uniform(0.3, 1.0) for _ in range(target_tx_count)]
+    raw_weights = [random.uniform(0.5, 1.5) for _ in range(target_tx_count)]
     weight_sum = sum(raw_weights)
     sub_amounts = [(w / weight_sum) * total_asset_amount for w in raw_weights]
 
@@ -1172,45 +1178,10 @@ async def generate_transaction(
     drift = total_asset_amount - sum(sub_amounts)
     sub_amounts[-1] = round(sub_amounts[-1] + drift, 8)
 
-    # Generate unique timestamps spread across the range
-    timestamps = []
-    available_minutes = list(range(0, total_minutes))
-    random.shuffle(available_minutes)
-
-    # Pick timestamps ensuring ≥45 min gap
-    sorted_offsets = []
-    for offset in sorted(available_minutes):
-        if not sorted_offsets or (offset - sorted_offsets[-1]) >= min_gap_minutes:
-            sorted_offsets.append(offset)
-        if len(sorted_offsets) >= target_tx_count:
-            break
-
-    # If we couldn't find enough slots, evenly space them
-    if len(sorted_offsets) < target_tx_count:
-        step = max(min_gap_minutes, total_minutes // target_tx_count)
-        sorted_offsets = [i * step for i in range(target_tx_count) if i * step < total_minutes]
-
-    # Ensure we have exactly the right count
-    sorted_offsets = sorted_offsets[:target_tx_count]
-    while len(sorted_offsets) < target_tx_count:
-        last = sorted_offsets[-1] if sorted_offsets else 0
-        sorted_offsets.append(min(last + min_gap_minutes, total_minutes - 1))
-
-    # Add slight random jitter to each offset (±15 min) for realism
-    for i in range(len(sorted_offsets)):
-        jitter = random.randint(0, 15)
-        sorted_offsets[i] = max(0, min(total_minutes - 1, sorted_offsets[i] + jitter))
-
-    # Sort chronologically
-    sorted_offsets.sort()
-
-    timestamps = [start_dt + timedelta(minutes=offset) for offset in sorted_offsets]
-
-    # Distribute types across transactions
-    # Ensure at least one of each selected type, then fill randomly
-    type_assignments = list(request.types)  # One per selected type guaranteed
-    while len(type_assignments) < target_tx_count:
-        type_assignments.append(random.choice(request.types))
+    # Distribute selected types across transactions (round robin / shuffle)
+    type_assignments = []
+    for i in range(target_tx_count):
+        type_assignments.append(request.types[i % len(request.types)])
     random.shuffle(type_assignments)
 
     # Create transactions
@@ -1224,8 +1195,16 @@ async def generate_transaction(
         tx_timestamp = timestamps[i]
 
         # Map type to DB enum and balance direction
-        if tx_type in ("DEPOSIT", "CREDIT"):
-            db_type = TransactionType.DEPOSIT
+        if tx_type in ("DEPOSIT", "CREDIT", "EARNINGS", "STAKING_REWARD", "MINING_REWARD"):
+            if tx_type == "STAKING_REWARD":
+                db_type = TransactionType.STAKING_REWARD
+            elif tx_type == "MINING_REWARD":
+                db_type = TransactionType.MINING_REWARD
+            elif tx_type == "EARNINGS":
+                db_type = TransactionType.INVESTMENT_RETURN
+            else:
+                db_type = TransactionType.DEPOSIT
+
             stored_amount = abs(tx_asset_amount)
             balance_delta = tx_usd_amount
         else:
@@ -1240,10 +1219,13 @@ async def generate_transaction(
             desc_map = {
                 "DEPOSIT": f"Deposit {asset}",
                 "WITHDRAWAL": f"Withdrawal {asset}",
+                "EARNINGS": f"Daily Investment Earnings {asset}",
+                "STAKING_REWARD": f"Staking Payout {asset}",
+                "MINING_REWARD": f"Mining Payout {asset}",
                 "CREDIT": f"Account Credit {asset}",
                 "DEBIT": f"Account Debit {asset}",
             }
-            desc = desc_map[tx_type]
+            desc = desc_map.get(tx_type, f"Transaction {asset}")
 
         txn = Transaction(
             id=str(uuid.uuid4()),
@@ -1256,7 +1238,6 @@ async def generate_transaction(
             reference_id=None,
             status="COMPLETED"
         )
-        # Override the auto-generated created_at with our spread timestamp
         txn.created_at = tx_timestamp
         db.add(txn)
 
@@ -1279,7 +1260,7 @@ async def generate_transaction(
     await db.commit()
 
     return {
-        "message": f"{len(created_transactions)} transaction(s) generated successfully",
+        "message": f"{len(created_transactions)} transaction(s) generated successfully across {total_days} day(s)",
         "transactions": created_transactions,
         "asset_price_used": asset_price,
         "total_asset_amount": total_asset_amount,
