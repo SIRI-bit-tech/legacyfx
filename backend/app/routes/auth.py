@@ -416,7 +416,8 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(User).where(User.email == reset_data.email)
+    clean_email = (reset_data.email or '').strip().lower()
+    stmt = select(User).where(func.lower(User.email) == clean_email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
@@ -428,17 +429,17 @@ async def forgot_password(
         hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
         
         user.password_reset_token = hashed_token
-        user.password_reset_expires_at = datetime.utcnow() + timedelta(minutes=15)
+        user.password_reset_expires_at = datetime.utcnow() + timedelta(minutes=60)
         await db.commit()
         
-        # Determine the base URL dynamically based on frontend setup or settings
         frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
         reset_link = f"{frontend_url}/reset-password?token={raw_token}"
         email_content = create_email_template(
             title="Password Reset Request",
             code="",
-            message=f"You requested a password reset. Please click the link below to set a new password. This link will expire in 15 minutes.<br/><br/><a href='{reset_link}' style='display:inline-block;padding:10px 20px;background:#D3A376;color:#fff;text-decoration:none;border-radius:5px;'>Reset Password</a>",
-            validity_minutes=15
+            message=f"You requested a password reset. Please click the button below to set a new password. This link will expire in 60 minutes.<br/><br/><a href='{reset_link}' style='display:inline-block;padding:12px 24px;background:#D3A376;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;'>Reset Password</a>",
+            validity_minutes=60,
+            escape_html=False
         )
         
         background_tasks.add_task(

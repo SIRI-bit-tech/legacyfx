@@ -34,7 +34,7 @@ function ResetPasswordForm() {
       setSuccess(true);
       toast.success('Password has been successfully reset');
     } catch (err: any) {
-      toast.error(err.message || 'Failed to reset password');
+      toast.error(err.response?.data?.detail || err.message || 'Failed to reset password');
     } finally {
       setLoading(false);
     }
