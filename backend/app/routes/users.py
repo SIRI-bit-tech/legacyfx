@@ -195,8 +195,16 @@ async def submit_kyc(
     has_articles = "ARTICLES_OF_ASSOCIATION" in doc_types
     has_joint_agreement = "JOINT_OWNERSHIP_AGREEMENT" in doc_types
 
-    # Requirement validation based on account type
-    if current_user.account_type == "INDIVIDUAL":
+    user_tier_str = current_user.tier.value if hasattr(current_user.tier, 'value') else str(current_user.tier)
+
+    # Requirement validation based on account type and tier
+    if user_tier_str == "BASIC":
+        if not has_id and current_user.account_type != "CORPORATE":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Basic accounts require a Government ID."
+            )
+    elif current_user.account_type == "INDIVIDUAL":
         if not has_id or not has_address:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -209,10 +217,10 @@ async def submit_kyc(
                 detail="Joint accounts require Government ID, Proof of Address, and a Joint Ownership Agreement."
             )
     elif current_user.account_type == "CORPORATE":
-        if not has_business_license or not has_articles or not has_address:
+        if not has_business_license or not has_articles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Corporate accounts require a Business License, Articles of Association, and Proof of Address."
+                detail="Corporate accounts require a Business License and Articles of Association."
             )
         
     current_user.kyc_status = KYCStatus.PENDING

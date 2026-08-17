@@ -95,9 +95,12 @@ export default function VerificationPage() {
 
   const handleSubmit = async () => {
     const type = user?.account_type || 'INDIVIDUAL';
+    const tier = user?.tier || 'BASIC';
     let canSubmit = false;
 
-    if (type === 'INDIVIDUAL') {
+    if (tier === 'BASIC') {
+      canSubmit = !!uploads.id;
+    } else if (type === 'INDIVIDUAL') {
       canSubmit = !!(uploads.id && uploads.address);
     } else if (type === 'JOINT') {
       canSubmit = !!(uploads.id && uploads.address && uploads.joint_agreement);
@@ -281,26 +284,28 @@ export default function VerificationPage() {
                 </div>
               )}
 
-              {/* All: Proof of Address */}
-              <div className={`bg-bg-secondary border rounded-2xl p-6 transition-all ${uploads.address ? 'border-color-success/50' : 'border-color-border'}`}>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="bg-color-primary/10 w-12 h-12 rounded-xl flex items-center justify-center text-color-primary">
-                    <Upload className="w-6 h-6" />
+              {/* Proof of Address (Hidden for BASIC accounts) */}
+              {user?.tier !== 'BASIC' && (
+                <div className={`bg-bg-secondary border rounded-2xl p-6 transition-all ${uploads.address ? 'border-color-success/50' : 'border-color-border'}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="bg-color-primary/10 w-12 h-12 rounded-xl flex items-center justify-center text-color-primary">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    {uploads.address && <CheckCircle2 className="w-6 h-6 text-color-success" />}
                   </div>
-                  {uploads.address && <CheckCircle2 className="w-6 h-6 text-color-success" />}
+                  <h3 className="text-xl font-bold text-text-primary mb-2">Proof of Address</h3>
+                  <p className="text-sm text-text-tertiary mb-6">
+                    Utility bill or bank statement from the last 3 months.
+                  </p>
+                  <UploadButton
+                    endpoint="kycUploader"
+                    onClientUploadComplete={(res) => handleUploadComplete('PROOF_OF_ADDRESS', res[0].ufsUrl)}
+                    onUploadError={(error: Error) => {
+                      toast.error(`Error: ${error.message}`);
+                    }}
+                  />
                 </div>
-                <h3 className="text-xl font-bold text-text-primary mb-2">Proof of Address</h3>
-                <p className="text-sm text-text-tertiary mb-6">
-                  Utility bill or bank statement from the last 3 months.
-                </p>
-                <UploadButton
-                  endpoint="kycUploader"
-                  onClientUploadComplete={(res) => handleUploadComplete('PROOF_OF_ADDRESS', res[0].ufsUrl)}
-                  onUploadError={(error: Error) => {
-                    toast.error(`Error: ${error.message}`);
-                  }}
-                />
-              </div>
+              )}
             </div>
 
             {/* Submit Button */}
