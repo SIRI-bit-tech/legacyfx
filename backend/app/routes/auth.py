@@ -120,9 +120,11 @@ async def register(
         email_content
     )
     
-    # Update response with actual ID for new users
-    success_response["user_id"] = user_id
-    return success_response
+    return RegisterResponse(
+        message="Registration successful. Please check your email for the verification code.",
+        user_id=user_id,
+        require_verification=True
+    )
 
 @router.post("/verify-email")
 @limiter.limit("10/minute")
