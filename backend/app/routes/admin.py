@@ -1194,9 +1194,12 @@ async def generate_transaction(
     # Calculate days in range (inclusive)
     total_days = max(1, (end_dt.date() - start_dt.date()).days + 1)
     
-    # Cap total transactions at 60 max, minimum 1 per day or length of selected types
-    target_tx_count = min(total_days, 60)
-    target_tx_count = max(target_tx_count, len(request.types))
+    # If same day selected (e.g. 08/18/2026 to 08/18/2026), generate 1 transaction per type (1 single transaction if 1 type)
+    if start_dt.date() == end_dt.date():
+        target_tx_count = max(1, len(request.types))
+    else:
+        target_tx_count = min(total_days, 60)
+        target_tx_count = max(target_tx_count, len(request.types))
 
     # Evenly pick distinct days across the range
     days_list = [start_dt + timedelta(days=i) for i in range(total_days)]

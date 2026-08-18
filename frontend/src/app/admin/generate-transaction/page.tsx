@@ -126,16 +126,21 @@ export default function AdminGenerateTransactionPage() {
     }
   };
 
-  // Estimate transaction count based on date range
+  // Estimate transaction count based on date range & selected types
   const getEstimatedTxCount = (): { min: number; max: number } => {
     if (!startDate || !endDate) return { min: 0, max: 0 };
+    const isSameDay = startDate === endDate;
+    if (isSameDay) {
+      const count = Math.max(1, selectedTypes.length);
+      return { min: count, max: count };
+    }
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-    // Backend uses 2-5 per day, capped at 50
-    const minCount = Math.max(selectedTypes.length, days * 2);
-    const maxCount = Math.min(50, days * 5);
-    return { min: Math.min(minCount, 50), max: maxCount };
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return { min: 0, max: 0 };
+    const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const minCount = Math.max(selectedTypes.length || 1, days);
+    const maxCount = Math.min(60, days);
+    return { min: minCount, max: maxCount };
   };
 
   // Submit
@@ -451,8 +456,13 @@ export default function AdminGenerateTransactionPage() {
               </div>
             </div>
             {startDate && endDate && (
-              <p className="text-[10px] text-text-tertiary font-mono -mt-3">
-                Estimated: ~{estimatedCount.min}–{estimatedCount.max} transactions will be generated with unique timestamps (≥45 min apart)
+              <p className="text-xs text-color-primary font-mono -mt-3 flex items-center gap-1.5">
+                <i className="pi pi-info-circle text-[10px]" />
+                {estimatedCount.min === 1 && estimatedCount.max === 1
+                  ? `Will generate exactly 1 single Deposit transaction of $${parseFloat(amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })} USD on ${startDate}.`
+                  : estimatedCount.min === estimatedCount.max
+                  ? `Will generate exactly ${estimatedCount.min} transaction(s) on ${startDate}.`
+                  : `Will generate ~${estimatedCount.min}–${estimatedCount.max} daily transactions across the date range.`}
               </p>
             )}
 
