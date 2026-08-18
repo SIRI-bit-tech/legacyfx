@@ -21,15 +21,9 @@ export default function Navbar() {
         <div className="flex items-center gap-2 md:gap-4 shrink-0">
           <Link 
             href="/login" 
-            className="hidden sm:block text-sm font-semibold text-text-primary hover:text-color-primary transition-colors px-2 md:px-4 py-2"
-          >
-            Log In
-          </Link>
-          <Link 
-            href="/signup" 
             className="bg-color-primary hover:bg-color-primary-hover text-bg-primary px-3 md:px-5 py-2 rounded-md font-semibold text-xs md:text-sm transition-all shadow-[0_0_20px_-5px_rgba(240,185,11,0.3)] hover:scale-105 active:scale-95 whitespace-nowrap"
           >
-            Open Account
+            Sign In
           </Link>
         </div>
       </div>

@@ -42,7 +42,7 @@ export default function Hero() {
               href="/login" 
               className="border border-[#2B3139] hover:bg-bg-secondary text-text-primary px-10 py-5 rounded-md font-bold text-lg transition-all flex items-center justify-center"
             >
-              Institutional Login
+              Sign In
             </Link>
           </div>
 
