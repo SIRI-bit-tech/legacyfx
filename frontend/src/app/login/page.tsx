@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     try {
       const response: any = await api.post(API_ENDPOINTS.AUTH.LOGIN, {
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
       

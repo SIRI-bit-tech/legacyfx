@@ -56,8 +56,9 @@ function SignupForm() {
     setLoading(true);
 
     try {
+      const cleanEmail = formData.email.trim().toLowerCase();
       await api.post(API_ENDPOINTS.AUTH.REGISTER, {
-        email: formData.email,
+        email: cleanEmail,
         password: formData.password,
         username: formData.username,
         first_name: formData.firstName,

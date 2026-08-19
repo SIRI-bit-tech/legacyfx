@@ -34,8 +34,11 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
+    # Normalize email to lowercase
+    clean_email = (register_data.email or '').strip().lower()
+
     # Check if email already registered
-    stmt_email = select(User).where(User.email == register_data.email)
+    stmt_email = select(User).where(func.lower(User.email) == clean_email)
     result_email = await db.execute(stmt_email)
     if result_email.scalar_one_or_none():
         raise HTTPException(
@@ -65,7 +68,7 @@ async def register(
     user_id = str(uuid.uuid4())
     new_user = User(
         id=user_id,
-        email=register_data.email,
+        email=clean_email,
         username=username,
         password_hash=hash_password(register_data.password),
         first_name=register_data.first_name,
@@ -168,7 +171,8 @@ async def login(
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(User).where(User.email == login_data.email)
+    clean_email = (login_data.email or '').strip().lower()
+    stmt = select(User).where(func.lower(User.email) == clean_email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
