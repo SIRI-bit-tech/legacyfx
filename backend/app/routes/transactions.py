@@ -24,6 +24,9 @@ async def list_transactions(
     current_user: User = Depends(get_current_user)
 ):
     """List paginated transactions for the current user (ledger)."""
+    from app.tasks.deposit_earnings_scheduler import process_daily_deposit_earnings
+    await process_daily_deposit_earnings(db=db, user_id=current_user.id)
+
     per_page = min(per_page, MAX_PAGE_SIZE)
     offset = (page - 1) * per_page
     

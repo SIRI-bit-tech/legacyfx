@@ -54,12 +54,13 @@ async def get_funds_summary(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get portfolio summary used by Assets and Dashboard cards."""
-    if userId != current_user.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
     from app.utils.market import get_live_price
     from app.models.trading import Position, PositionStatus
+    from app.tasks.deposit_earnings_scheduler import process_daily_deposit_earnings
+
+    # Process on-demand daily deposit earnings ($25/day catch-up)
+    await process_daily_deposit_earnings(db=db, user_id=current_user.id)
+    await db.refresh(current_user)
 
     open_positions_stmt = select(Position).where(
         Position.user_id == userId, Position.status == PositionStatus.OPEN

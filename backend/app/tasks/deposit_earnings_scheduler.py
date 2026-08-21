@@ -23,83 +23,105 @@ settings = get_settings()
 scheduler = AsyncIOScheduler()
 
 
-async def process_daily_deposit_earnings():
-    """Calculate and pay out daily earnings on approved deposits.
+async def process_daily_deposit_earnings(db: AsyncSession = None, user_id: str = None):
+    """Calculate and pay out daily deposit earnings ($25/day) on approved deposits.
     
-    If deposit >= $50: user earns $5 daily.
-    If deposit < $50: user earns $3 daily.
+    Supports catch-up: if the server slept or missed days, it calculates the exact 
+    number of missed days and credits $25 for every single missed day with historical 
+    timestamps, ensuring 100% consistent payouts without needing a 24/7 server.
     """
-    logger.info("Starting daily deposit earnings payout job...")
+    logger.info("Checking daily deposit earnings payout (on-demand / scheduled)...")
     
+    should_close_db = False
+    if db is None:
+        db = async_session()
+        should_close_db = True
+
     try:
-        async with async_session() as db:
-            # Payouts are run for the current calendar day.
-            # Only select deposits that are CONFIRMED and haven't been paid today.
-            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_date = datetime.utcnow().date()
+        
+        stmt = select(Deposit, User).join(
+            User, Deposit.user_id == User.id
+        ).where(
+            Deposit.status == DepositStatus.CONFIRMED
+        )
+        if user_id:
+            stmt = stmt.where(Deposit.user_id == user_id)
             
-            stmt = select(Deposit, User).join(
-                User, Deposit.user_id == User.id
-            ).where(
-                Deposit.status == DepositStatus.CONFIRMED,
-                (Deposit.last_earning_payout_at.is_(None) | (Deposit.last_earning_payout_at < today))
-            )
+        result = await db.execute(stmt)
+        rows = result.all()
+        
+        if not rows:
+            return {"payouts_processed": 0, "total_amount": 0.0}
             
-            result = await db.execute(stmt)
-            rows = result.all()
+        user_deposits = defaultdict(list)
+        for deposit, user in rows:
+            user_deposits[user].append(deposit)
             
-            if not rows:
-                logger.info("No deposits eligible for daily earnings payout today.")
-                return {"payouts_processed": 0, "total_amount": 0.0}
+        ably_client = None
+        try:
+            ably_client = get_ably_client()
+        except Exception as e:
+            logger.warning(f"Ably client not available: {e}")
             
-            # Group by user to aggregate notifications and updates
-            user_deposits = defaultdict(list)
-            for deposit, user in rows:
-                user_deposits[user].append(deposit)
-                
-            ably_client = None
-            try:
-                ably_client = get_ably_client()
-            except Exception as e:
-                logger.warning(f"Ably client not available: {e}")
-                
-            payouts_count = 0
-            total_paid_amount = 0.0
+        payouts_count = 0
+        total_paid_amount = 0.0
+        
+        for user, deposits in user_deposits.items():
+            user_payout_total = 0.0
+            deposit_details = []
             
-            for user, deposits in user_deposits.items():
-                user_payout_total = 0.0
-                deposit_details = []
-                
-                for deposit in deposits:
-                    # Check deposit amount. Use fiat_amount (which represents USD value at approval)
-                    # and fallback to amount if fiat_amount is not set.
-                    usd_val = deposit.fiat_amount if deposit.fiat_amount is not None else deposit.amount
+            for deposit in deposits:
+                # Determine baseline reference date
+                if deposit.last_earning_payout_at:
+                    start_ref = deposit.last_earning_payout_at
+                elif deposit.confirmed_at:
+                    start_ref = deposit.confirmed_at
+                else:
+                    start_ref = deposit.created_at or datetime.utcnow()
                     
-                    payout_amount = 5.0 if usd_val >= 50.0 else 3.0
-                    user_payout_total += payout_amount
+                last_paid_date = start_ref.date()
+                days_missed = (today_date - last_paid_date).days
+                
+                if days_missed <= 0:
+                    continue
                     
-                    # Update deposit payout timestamp
-                    deposit.last_earning_payout_at = datetime.utcnow()
+                daily_payout_amount = 25.0  # $25.00 every day
+                deposit_total_earned = 0.0
+                
+                # Catch up every single missed day
+                for d in range(1, days_missed + 1):
+                    payout_day = last_paid_date + timedelta(days=d)
+                    payout_timestamp = datetime.combine(payout_day, datetime.min.time().replace(hour=8))
                     
-                    # Log individual transaction for auditing
+                    deposit_total_earned += daily_payout_amount
+                    payouts_count += 1
+                    
+                    # Log individual transaction for auditing & ledger
                     tx = Transaction(
                         id=str(uuid.uuid4()),
                         user_id=user.id,
                         type=TransactionType.INVESTMENT_RETURN,
                         asset_symbol="USD",
-                        amount=payout_amount,
-                        usd_amount=payout_amount,
-                        description=f"Daily deposit return for {deposit.amount} {deposit.asset_symbol}",
+                        amount=daily_payout_amount,
+                        usd_amount=daily_payout_amount,
+                        description=f"Daily Earnings ({deposit.asset_symbol} Deposit Return)",
                         reference_id=deposit.id,
                         status="COMPLETED",
-                        created_at=datetime.utcnow()
+                        created_at=payout_timestamp
                     )
                     db.add(tx)
-                    
-                    deposit_details.append(
-                        f"• {deposit.amount} {deposit.asset_symbol} (valued at ${usd_val:.2f}): earned ${payout_amount:.2f}"
-                    )
-                    payouts_count += 1
+
+                # Update deposit payout timestamp to now
+                deposit.last_earning_payout_at = datetime.utcnow()
+                user_payout_total += deposit_total_earned
                 
+                usd_val = deposit.fiat_amount if deposit.fiat_amount is not None else deposit.amount
+                deposit_details.append(
+                    f"• {deposit.amount} {deposit.asset_symbol} (valued at ${usd_val:.2f}): credited ${deposit_total_earned:.2f} ({days_missed} day(s) @ $25.00/day)"
+                )
+
+            if user_payout_total > 0:
                 # Credit the user's balances
                 user.account_balance += user_payout_total
                 user.trading_balance += user_payout_total
@@ -111,7 +133,7 @@ async def process_daily_deposit_earnings():
                     user_id=user.id,
                     type="DEPOSIT",
                     title="Daily Deposit Earnings Credited",
-                    message=f"Good morning! Your account has been credited with ${user_payout_total:.2f} daily earnings from your approved deposits.",
+                    message=f"Your account has been credited with ${user_payout_total:.2f} daily deposit earnings.",
                     is_read=False,
                     created_at=datetime.utcnow()
                 )
@@ -137,8 +159,8 @@ async def process_daily_deposit_earnings():
                 email_message = (
                     f"Good morning!<br/><br/>"
                     f"We are pleased to inform you that your daily deposit earnings have been credited to your account.<br/><br/>"
-                    f"<b>Total Credited Today:</b> ${user_payout_total:.2f}<br/>"
-                    f"<b>New Account Balance:</b> ${user.account_balance:.2f}<br/><br/>"
+                    f"<b>Total Credited:</b> ${user_payout_total:.2f}<br/>"
+                    f"<b>New Net Worth:</b> ${user.account_balance:.2f}<br/><br/>"
                     f"<b>Earnings Breakdown:</b><br/>" + "<br/>".join(deposit_details) + "<br/><br/>"
                     f"The funds have been added to your trading balance and are available for immediate use.<br/><br/>"
                     f"Thank you for choosing Prime Meridian Markets!"
@@ -156,18 +178,21 @@ async def process_daily_deposit_earnings():
                     "Daily Deposit Earnings Credited - Prime Meridian Markets",
                     email_content
                 ))
-            
+        
+        if payouts_count > 0:
             await db.commit()
             logger.info(
                 f"Successfully completed daily deposit earnings payout: "
-                f"{payouts_count} payouts processed across {len(user_deposits)} users. "
-                f"Total amount paid: ${total_paid_amount:.2f}"
+                f"{payouts_count} payouts processed across users. Total amount paid: ${total_paid_amount:.2f}"
             )
-            return {"payouts_processed": payouts_count, "total_amount": total_paid_amount}
-            
+        return {"payouts_processed": payouts_count, "total_amount": total_paid_amount}
+
     except Exception as e:
-        logger.error(f"Daily deposit earnings payout job failed: {e}", exc_info=True)
+        logger.error(f"Daily deposit earnings payout failed: {e}", exc_info=True)
         return {"error": str(e)}
+    finally:
+        if should_close_db:
+            await db.close()
 
 
 def start_scheduler():
